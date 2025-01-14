@@ -10,6 +10,7 @@ import { Config } from './config'
 import logger from './logger'
 import { DATA_PROFILE_TTL, FETCH_TIMEOUT_MS } from '../defaults'
 import fetch, { Response as FetchResponse } from 'node-fetch'
+import { downloadContentFromMessage } from "@whiskeysockets/baileys";
 
 export const MEDIA_DIR = '/medias'
 
@@ -51,23 +52,41 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
   }
 
   mediaStore.saveMedia = async (waMessage: WAMessage) => {
-    let buffer
-    const binMessage = getBinMessage(waMessage)
-    const url = binMessage?.message?.url
+    let buffer;
+    const binMessage = getBinMessage(waMessage);
+    const url = binMessage?.message?.url;
+
     if (url.indexOf('base64') >= 0) {
-      const parts = url.split(',')
-      const base64 = parts[1]
-      buffer = Buffer.from(base64, 'base64')
+      const parts = url.split(',');
+      const base64 = parts[1];
+      buffer = Buffer.from(base64, 'base64');
     } else {
-      buffer = await downloadMediaMessage(waMessage, 'buffer', {})
+
+      const mediaMessage = waMessage.message;
+      if (mediaMessage?.stickerMessage) {
+        const directPath = mediaMessage.stickerMessage.directPath;
+        const mediaKey = mediaMessage.stickerMessage.mediaKey;
+        const correctedUrl = `https://mmg.whatsapp.net${directPath}&mms3=true`;
+        
+        buffer = await downloadContentFromMessage(
+          { directPath, mediaKey, url: correctedUrl },
+          'sticker'
+        );
+      } else {
+        buffer = await downloadMediaMessage(waMessage, 'buffer', {});
+      }
     }
-    const fileName = mediaStore.getFileName(phone, waMessage)
-    await mediaStore.saveMediaBuffer(fileName, buffer)
+
+    const fileName = mediaStore.getFileName(phone, waMessage);
+    await mediaStore.saveMediaBuffer(fileName, buffer);
+
     if (binMessage?.messageType && waMessage.message) {
-      waMessage.message[binMessage?.messageType]['url'] = await mediaStore.getFileUrl(fileName, DATA_PROFILE_TTL)
+      waMessage.message[binMessage?.messageType]['url'] = await mediaStore.getFileUrl(fileName, DATA_PROFILE_TTL);
     }
-    return waMessage
-  }
+
+    return waMessage;
+  };
+
 
   mediaStore.saveMediaBuffer = async (fileName: string, content: Buffer) => {
     const filePath = await mediaStore.getFileUrl(fileName, DATA_PROFILE_TTL)
