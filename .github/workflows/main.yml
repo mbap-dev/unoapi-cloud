@@ -35,7 +35,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ github.repository }}
+            mbppereira/unoapi-cloud
           tags: |
             type=schedule
             type=ref,event=branch
