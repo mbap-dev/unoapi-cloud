@@ -712,7 +712,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
             break
 
           case 'DELETED':
-            cloudApiStatus = 'deleted'
+            // cloudApiStatus = 'deleted'
             break
 
           default:
