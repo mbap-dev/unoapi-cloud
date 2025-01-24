@@ -2,17 +2,18 @@ name: ci
 
 on:
   push:
-    branches:  [ main develop ]
+    branches: [ main, develop ]
     tags:
       - 'v*.*.*'
-
   pull_request:
-    branches: [ main develop ]
+    branches: [ main, develop ]
+  release:
+    types: [created]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    steps: 
+    steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -35,11 +36,9 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ github.repository }}
+            mbppereira/unoapi-cloud
           tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=pr
+            type=branch,pattern=develop
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
@@ -64,12 +63,38 @@ jobs:
           platforms: linux/amd64,linux/arm64
           context: .
           file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          push: ${{ github.event_name != 'pull_request' && github.event_name != 'release' }}
+          tags: |
+            ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Docker Hub Description
         uses: peter-evans/dockerhub-description@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+  
+  release_publish:
+    if: github.event_name == 'release' && github.event.action == 'created'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker meta for release
+        id: release_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            mbppereira/unoapi-cloud
+          tags: |
+            v${{ github.event.release.tag_name }}
+
+      - name: Build and push release
+        uses: docker/build-push-action@v5
+        with:
+          platforms: linux/amd64,linux/arm64
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.release_meta.outputs.tags }}
