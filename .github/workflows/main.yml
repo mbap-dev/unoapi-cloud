@@ -31,20 +31,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            mbppereira/unoapi-cloud
-          tags: |
-            type=ref,pattern=main
-            type=ref,pattern=develop
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -58,7 +44,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
+      - name: Build and push for develop or release
         uses: docker/build-push-action@v5
         with:
           platforms: linux/amd64,linux/arm64
@@ -66,15 +52,9 @@ jobs:
           file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' && github.event_name != 'release' }}
           tags: |
-            ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+            mbppereira/unoapi-cloud:develop
+            mbppereira/unoapi-cloud:v${{ github.event.release.tag_name || github.sha }}
 
-      - name: Docker Hub Description
-        uses: peter-evans/dockerhub-description@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-  
   release_publish:
     if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
@@ -82,20 +62,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Docker meta for release
-        id: release_meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            mbppereira/unoapi-cloud
-          tags: |
-            v${{ github.event.release.tag_name }}
-
-      - name: Build and push release
+      - name: Build and push release tag
         uses: docker/build-push-action@v5
         with:
           platforms: linux/amd64,linux/arm64
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.release_meta.outputs.tags }}
+          tags: |
+            mbppereira/unoapi-cloud:v${{ github.event.release.tag_name }}
