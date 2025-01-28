@@ -6,6 +6,33 @@ import { completeCloudApiWebHook, isGroupMessage, isOutgoingMessage } from './tr
 import { isInBlacklist } from './blacklist'
 import { EnqueueOption } from '../amqp'
 
+
+interface Status {
+  conversation?: {
+    id: string;
+  };
+  id: string;
+  recipient_id: string;
+  status: string;
+}
+
+interface Change {
+  value?: {
+    statuses?: Status[];
+  };
+  field?: string;
+}
+
+interface Entry {
+  id: string;
+  changes?: Change[];
+}
+
+interface Message {
+  object?: string;
+  entry?: Entry[];
+}
+
 export class OutgoingCloudApi implements Outgoing {
   private getConfig: getConfig
   private isInBlacklist: isInBlacklist
@@ -40,11 +67,10 @@ export class OutgoingCloudApi implements Outgoing {
       logger.info(`Session phone %s webhook %s configured to not send outgoing message for this webhook`, phone, webhook.id)
       return
     }
-
-    // @ts-ignore
-    const isDeleted = message?.entry?.some(entry =>
+    
+    const isDeleted = (message as Message)?.entry?.some(entry =>
       entry.changes?.some(change =>
-        change.value?.statuses?.some(status => status.status === "deleted")
+        change.value?.statuses?.some(status => status.status === 'deleted')
       )
     ) || false;
     
