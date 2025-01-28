@@ -824,7 +824,6 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
       change.value.messages.push(message)
     }
     logger.debug('fromBaileysMessageContent %s => %s', phone, JSON.stringify(data))
-    console.log(JSON.stringify(data))
     return data
   } catch (e) {
     logger.error(e, 'Error on convert baileys to cloud-api')
