@@ -42,7 +42,7 @@ export class OutgoingCloudApi implements Outgoing {
     }
 
     // @ts-ignore
-    const isDeleted = message.entry?.some(entry =>
+    const isDeleted = message?.entry?.some(entry =>
       entry.changes?.some(change =>
         change.value?.statuses?.some(status => status.status === "deleted")
       )
