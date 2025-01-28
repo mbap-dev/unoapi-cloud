@@ -42,11 +42,11 @@ export class OutgoingCloudApi implements Outgoing {
     }
 
     // @ts-ignore
-    const isDeleted = message.entry.some(entry =>
-      entry.changes.some(change =>
-        change.value.statuses.some(status => status.status === "deleted")
+    const isDeleted = message.entry?.some(entry =>
+      entry.changes?.some(change =>
+        change.value?.statuses?.some(status => status.status === "deleted")
       )
-    );
+    ) || false;
     
     const body = JSON.stringify(message)
     const headers = {
@@ -55,7 +55,7 @@ export class OutgoingCloudApi implements Outgoing {
     }
     const url = webhook.urlAbsolute || `${webhook.url}/${phone}`
     logger.debug(`Send url ${url} with headers %s and body %s`, JSON.stringify(headers), body)
-    if (!isDeleted) {
+    if (isDeleted === false) {
       let response: Response
       try {
         const options: RequestInit = { method: 'POST', body, headers }
