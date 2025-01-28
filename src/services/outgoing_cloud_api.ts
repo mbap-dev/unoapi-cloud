@@ -43,7 +43,7 @@ export class OutgoingCloudApi implements Outgoing {
     
     const body = JSON.stringify(message)
 
-    const isDeleted = body.includes('"status":"deleted"') || false;
+    const isDeleted = /"statuses":\[\{[^]*?"status":"deleted"/.test(body);
     
     const headers = {
       'Content-Type': 'application/json; charset=utf-8',
