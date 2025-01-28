@@ -766,7 +766,7 @@ describe('service transformer', () => {
                     },
                     id,
                     recipient_id: remotePhoneNumber.replace('+', ''),
-                    status: 'deleted',
+                    status: 'sent',
                     timestamp: messageTimestamp,
                   },
                 ],

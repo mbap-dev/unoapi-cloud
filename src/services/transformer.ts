@@ -712,12 +712,12 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
             break
 
           case 'DELETED':
-            // cloudApiStatus = 'deleted'
+             cloudApiStatus = 'sent'
             break
 
           default:
             if (payload.update && payload.update.messageStubType && payload.update.messageStubType == 1) {
-              cloudApiStatus = 'deleted'
+              cloudApiStatus = 'sent'
             } else if (payload?.update?.starred) {
               // starred in unknown, but if is starred the userd read the message
               cloudApiStatus = 'read'
@@ -824,6 +824,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
       change.value.messages.push(message)
     }
     logger.debug('fromBaileysMessageContent %s => %s', phone, JSON.stringify(data))
+    console.log(JSON.stringify(data))
     return data
   } catch (e) {
     logger.error(e, 'Error on convert baileys to cloud-api')
