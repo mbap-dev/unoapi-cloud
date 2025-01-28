@@ -40,6 +40,11 @@ export class OutgoingCloudApi implements Outgoing {
       logger.info(`Session phone %s webhook %s configured to not send outgoing message for this webhook`, phone, webhook.id)
       return
     }
+    // @ts-ignore
+    if ( message.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.status !== 'deleted') {
+      logger.info(`NAO APAGA MAIS`, phone, webhook.id)
+      return
+    }
     const body = JSON.stringify(message)
     const headers = {
       'Content-Type': 'application/json; charset=utf-8',
