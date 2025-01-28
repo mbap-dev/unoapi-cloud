@@ -41,7 +41,7 @@ export class OutgoingCloudApi implements Outgoing {
       return
     }
     // @ts-ignore
-    if ( message.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.status !== 'deleted') {
+    if ( message.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.status === 'deleted') {
       logger.info(`NAO APAGA MAIS`, phone, webhook.id)
       return
     }
