@@ -6,33 +6,6 @@ import { completeCloudApiWebHook, isGroupMessage, isOutgoingMessage } from './tr
 import { isInBlacklist } from './blacklist'
 import { EnqueueOption } from '../amqp'
 
-
-interface Status {
-  conversation?: {
-    id: string;
-  };
-  id: string;
-  recipient_id: string;
-  status: string;
-}
-
-interface Change {
-  value?: {
-    statuses?: Status[];
-  };
-  field?: string;
-}
-
-interface Entry {
-  id: string;
-  changes?: Change[];
-}
-
-interface Message {
-  object?: string;
-  entry?: Entry[];
-}
-
 export class OutgoingCloudApi implements Outgoing {
   private getConfig: getConfig
   private isInBlacklist: isInBlacklist
@@ -68,20 +41,17 @@ export class OutgoingCloudApi implements Outgoing {
       return
     }
     
-    const isDeleted = (message as Message)?.entry?.some(entry =>
-      entry.changes?.some(change =>
-        change.value?.statuses?.some(status => status.status === 'deleted')
-      )
-    ) || false;
-    
     const body = JSON.stringify(message)
+
+    const isDeleted = body.includes('"status":"deleted"') || false;
+    
     const headers = {
       'Content-Type': 'application/json; charset=utf-8',
       [webhook.header]: webhook.token,
     }
     const url = webhook.urlAbsolute || `${webhook.url}/${phone}`
     logger.debug(`Send url ${url} with headers %s and body %s`, JSON.stringify(headers), body)
-    if (isDeleted === false) {
+    if (!isDeleted) {
       let response: Response
       try {
         const options: RequestInit = { method: 'POST', body, headers }
