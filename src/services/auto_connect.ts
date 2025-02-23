@@ -16,7 +16,7 @@ export const autoConnect = async (
   onNewLogin: OnNewLogin,
 ) => {
   try {
-    await sessionStore.syncConnecting()
+    await sessionStore.syncConnections()
     const phones = await sessionStore.getPhones()
     logger.info(`${phones.length} phones to verify if is auto connect`)
     for (let i = 0, j = phones.length; i < j; i++) {
@@ -29,6 +29,10 @@ export const autoConnect = async (
         }
         if (config.server !== UNOAPI_SERVER_NAME) {
           logger.info(`Ignore connecting phone ${phone} server ${config.server} is not server current server ${UNOAPI_SERVER_NAME}...`)
+          continue;
+        }
+        if (await sessionStore.isStatusBlocked(phone)) {
+          logger.info(`Session blocked ${phone}...`)
           continue;
         }
         logger.info(`Auto connecting phone ${phone}...`)

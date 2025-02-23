@@ -1,4 +1,4 @@
-import { GroupMetadata, WAMessage, proto, delay, isJidGroup, jidNormalizedUser } from 'baileys'
+import { GroupMetadata, WAMessage, proto, delay, isJidGroup, jidNormalizedUser, AnyMessageContent } from 'baileys'
 import fetch, { Response as FetchResponse } from 'node-fetch'
 import { Incoming } from './incoming'
 import { Listener } from './listener'
@@ -20,7 +20,7 @@ import {
   OnReconnect,
 } from './socket'
 import { Client, getClient, clients, Contact } from './client'
-import { Config, defaultConfig, getConfig } from './config'
+import { Config, configs, defaultConfig, getConfig, getMessageMetadataDefault } from './config'
 import { toBaileysMessageContent, phoneNumberToJid, jidToPhoneNumber } from './transformer'
 import { v1 as uuid } from 'uuid'
 import { Response } from './response'
@@ -71,7 +71,7 @@ export const getClientBaileys: getClient = async ({
 const sendError = new SendError(3, t('disconnected_session'))
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const sendMessageDefault: sendMessage = async (_phone, _message) => {
+const sendMessageDefault: sendMessage = async (_phone: string, _message: AnyMessageContent, _options: unknown) => {
   throw sendError
 }
 
@@ -237,12 +237,24 @@ export class ClientBaileys implements Client {
   async connect(time: number) {
     logger.debug('Client Baileys connecting for %s', this.phone)
     this.config = await this.getConfig(this.phone)
-    this.config.getMessageMetadata = async <T>(data: T) => {
-      logger.debug(data, 'Put metadata in message')
-      return this.getMessageMetadata(data)
-    }
     this.store = await this.config.getStore(this.phone, this.config)
-    const { send, read, event, rejectCall, fetchImageUrl, fetchGroupMetadata, exists, close, logout } = await connect({
+    const { sessionStore } = this.store
+
+    await sessionStore.syncConnection(this.phone)
+    if (await sessionStore.isStatusConnecting(this.phone)) {
+      logger.warn('Already Connecting %s', this.phone)
+      return
+    }
+    if (await sessionStore.isStatusOnline(this.phone)) {
+      logger.warn('Already Connected %s', this.phone)
+      return
+    }
+    if (await sessionStore.isStatusBlocked(this.phone)) {
+      logger.warn('Blocked %s', this.phone)
+      return
+    }
+
+    const result = await connect({
       phone: this.phone,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       store: this.store!,
@@ -255,6 +267,10 @@ export class ClientBaileys implements Client {
       onDisconnected: async () => this.disconnect(),
       onReconnect: this.onReconnect,
     })
+    if (!result) {
+      return
+    }
+    const { send, read, event, rejectCall, fetchImageUrl, fetchGroupMetadata, exists, close, logout } = result
     this.event = event
     this.sendMessage = send
     this.readMessages = read
@@ -264,6 +280,10 @@ export class ClientBaileys implements Client {
     this.close = close
     this.exists = exists
     this.socketLogout = logout
+    this.config.getMessageMetadata = async <T>(data: T) => {
+      logger.debug(data, 'Put metadata in message')
+      return this.getMessageMetadata(data)
+    }
     await this.subscribe()
     logger.debug('Client Baileys connected for %s', this.phone)
   }
@@ -274,6 +294,7 @@ export class ClientBaileys implements Client {
 
     await this.close()
     clients.delete(this?.phone)
+    configs.delete(this?.phone)
     this.sendMessage = sendMessageDefault
     this.readMessages = readMessagesDefault
     this.rejectCall = rejectCallDefault
@@ -283,6 +304,7 @@ export class ClientBaileys implements Client {
     this.close = closeDefault
     this.config = defaultConfig
     this.socketLogout = logoutDefault
+    this.config.getMessageMetadata = getMessageMetadataDefault
   }
 
   async subscribe() {
@@ -346,7 +368,6 @@ export class ClientBaileys implements Client {
     })
   }
 
-
   async logout() {
     logger.debug('Logout client store for %s', this?.phone)
     await this.socketLogout()
@@ -358,7 +379,7 @@ export class ClientBaileys implements Client {
     const { status, type, to } = payload
     try {
       if (status) {
-        if (['sent', 'delivered', 'failed', 'progress', 'read'].includes(status)) {
+        if (['sent', 'delivered', 'failed', 'progress', 'read', 'deleted'].includes(status)) {
           if (status == 'read') {
             const currentStatus = await this.store?.dataStore?.loadStatus(payload?.message_id)
             if (currentStatus != status) {
@@ -380,6 +401,23 @@ export class ClientBaileys implements Client {
               }
             } else {
               logger.debug('Baileys %s already read message id %s!', this.phone, payload?.message_id)
+            }
+          } else if (status == 'deleted') {
+            const key = await this.store?.dataStore?.loadKey(payload?.message_id)
+            logger.debug('key %s for %s', JSON.stringify(key), payload?.message_id)
+            if (key?.id) {
+              if (key?.id.indexOf('-') > 0) {
+                logger.debug('Ignore delete message for %s with key id %s reading message key %s...', this.phone, key?.id)
+              } else {
+                logger.debug('Baileys %s deleting message key %s...', this.phone, JSON.stringify(key))
+                if (await this.sendMessage(key.remoteJid!, { delete: key }, {})) {
+                  await this.store?.dataStore?.setStatus(payload?.message_id, status)
+                  logger.debug('Baileys %s delete message key %s!', this.phone, JSON.stringify(key))
+                } else {
+                  logger.debug('Baileys %s not delete message key %s!', this.phone, JSON.stringify(key))
+                  throw `not online session ${this.phone}`
+                }
+              }
             }
           } else {
             await this.store?.dataStore?.setStatus(payload?.message_id, status)
@@ -467,6 +505,8 @@ export class ClientBaileys implements Client {
           if (response) {
             logger.debug('Sent to baileys %s', JSON.stringify(response))
             const key = response.key
+            await this.store?.dataStore?.setKey(key.id, key)
+            await this.store?.dataStore?.setMessage(key.remoteJid, response)
             const ok = {
               messaging_product: 'whatsapp',
               contacts: [
@@ -566,7 +606,7 @@ export class ClientBaileys implements Client {
   }
 
   async getMessageMetadata<T>(message: T) {
-    if (!this.store || !(await this.store.sessionStore.isStatusOnline(this.phone))) {
+    if (!this.store || !await this.store.sessionStore.isStatusOnline(this.phone)) {
       return message
     }
     const key = message && message['key']

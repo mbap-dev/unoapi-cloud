@@ -22,8 +22,10 @@ export class PhoneNumberController {
       const { phone } = req.params
       const config = await this.getConfig(phone)
       const store = await config.getStore(phone, config)
+      logger.debug('Session store retrieved!')
       const { sessionStore } = store
       const templates = await store.dataStore.loadTemplates()
+      logger.debug('Templates retrieved!')
       return res.status(200).json({
         display_phone_number: phone,
         status: await sessionStore.getStatus(phone),
@@ -52,6 +54,7 @@ export class PhoneNumberController {
         const { sessionStore } = store
         configs.push({ ...config, display_phone_number: phone, status: await sessionStore.getStatus(phone) })
       }
+      logger.debug('Configs retrieved!')
       return res.status(200).json({ data: configs })
     } catch (e) {
       return res.status(500).json({ status: 'error', message: e.message })

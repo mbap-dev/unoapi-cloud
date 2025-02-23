@@ -62,6 +62,11 @@ export class ListenerBaileys implements Listener {
         type,
         messages[0]['message']['imageMessage']['url']
       )
+      // await this.broadcast.send(
+      //   phone,
+      //   'status',
+      //   messages[0]['message']['imageMessage']['caption']
+      // )
     } else if(type === 'status') {
       await this.broadcast.send(
         phone,
@@ -96,12 +101,12 @@ export class ListenerBaileys implements Listener {
         await store?.dataStore.setKey(idUno, i.key)
         await store?.dataStore.setKey(idBaileys, i.key)
         await store.dataStore.setMessage(i.key.remoteJid!, i)
+        i.key.id = idUno
         if (isSaveMedia(i)) {
           logger.debug(`Saving media...`)
           i = await store?.mediaStore.saveMedia(i)
           logger.debug(`Saved media!`)
         }
-        i.key.id = idUno
       }
     }
 

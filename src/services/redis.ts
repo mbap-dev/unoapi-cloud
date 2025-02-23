@@ -131,8 +131,12 @@ const redisSetAndExpire = async function (key: string, value: any, ttl: number) 
   }
 }
 
-const authKey = (phone: string) => {
+export const authKey = (phone: string) => {
   return `${BASE_KEY}auth:${phone}`
+}
+
+const connectCountKey = (phone: string, ordinal: number | string) => {
+  return `${BASE_KEY}connect-count:${phone}:${ordinal}`
 }
 
 export const sessionStatusKey = (phone: string) => {
@@ -381,6 +385,26 @@ export const getMessage = async <T>(phone: string, jid: string, id: string): Pro
     const json = JSON.parse(string)
     return json
   }
+}
+
+export const getConnectCount = async(phone: string) => {
+  const keyPattern = connectCountKey(phone, '*')
+  const keys = await redisKeys(keyPattern)
+  return keys.length || 0
+}
+
+export const clearConnectCount = async(phone: string) => {
+  const keyPattern = connectCountKey(phone, '*')
+  const keys = await redisKeys(keyPattern)
+  for (let index = 0; index < keys.length.length; index++) {
+    const key = keys[index];
+    await redisDel(key)
+  }
+}
+
+export const setConnectCount = async (phone: string, count: number, ttl: number) => {
+  const key = connectCountKey(phone, count)
+  await redisSetAndExpire(key, 1, ttl)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

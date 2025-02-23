@@ -256,6 +256,13 @@
                                 <label for="rejectCalls" class="form-label">Mensagem ao Rejeitar Chamadas</label>
                                 <input type="text" class="form-control" id="rejectCalls" name="rejectCalls" placeholder="Deixe em Branco para não Rejeitar ligações automaticamente">
                             </div>
+                            <div class="col-12 col-md-12 col-lg-6">
+                              <label for="connectionType" class="form-label">Tipo de Conexão</label>
+                              <select id="connectionType" name="connectionType" class="form-control">
+                                <option value="qrcode" selected>QrCode</option>
+                                <option value="pairing_code">PairingCode</option>
+                              </select>
+                            </div>
                         </div>
                         <div class="row edit-form-row">
                             <div class="col-12 col-md-6 col-lg-6 col-xl-4 col-xxl-3">
@@ -346,7 +353,9 @@
                         <div id="webhooksContainer">
                             <h6>Webhooks</h6>
                             <div class="webhook mb-3">
-                                <label for="webhookUrl" class="form-label">URL</label>
+                                <label for="webhookId" class="form-label">ID</label>
+                                <input type="text" class="form-control mb-2 webhook-id" placeholder="Webhook ID">
+                                <label for="webhookUrl" class="form-label">URL Absoluta</label>
                                 <input type="text" class="form-control mb-2 webhook-url" placeholder="Webhook URL">
                                 <label for="webhookToken" class="form-label">Token</label>
                                 <input type="text" class="form-control mb-2 webhook-token" placeholder="Webhook Token">
@@ -379,8 +388,8 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <p id="qrCodeMessage">Aguarde o evento de QrCode</p>
-                    <div id="qrCodeContainer">QR Code será exibido aqui</div>
+                    <p id="qrCodeMessage">Aguarde o evento com o QrCode/PairingCode</p>
+                    <div id="qrCodeContainer">QrCode/PairingCode será exibido aqui</div>
                 </div>
             </div>
         </div>
@@ -424,6 +433,8 @@
             $('#addWebhookButton').on('click', function () {
                 const webhookTemplate = `
                     <div class="webhook mb-3">
+                        <label for="webhookId" class="form-label">ID</label>
+                        <input type="text" class="form-control mb-2 webhook-id" placeholder="Webhook ID">
                         <label for="webhookUrl" class="form-label">URL</label>
                         <input type="text" class="form-control mb-2 webhook-url" placeholder="Webhook URL">
                         <label for="webhookToken" class="form-label">Token</label>
@@ -595,6 +606,7 @@
                 $('#sendReactionAsReply').prop('checked', session.sendReactionAsReply);
                 $('#autoConnect').prop('checked', session.autoConnect);
                 $('#ignoreBroadcastMessages').prop('checked', session.ignoreBroadcastMessages);
+                $('#connectionType').val(session.connectionType);
 
                 // Limpar webhooks existentes no formulário de edição
                 $('#webhooksContainer .webhook').remove();
@@ -603,8 +615,10 @@
                     session.webhooks.forEach(webhook => {
                         const webhookTemplate = `
                             <div class="webhook mb-3">
+                                <label for="webhookId" class="form-label">ID</label>
+                                <input type="text" class="form-control mb-2 webhook-id" value="${webhook.id}" placeholder="Webhook ID">
                                 <label for="webhookUrl" class="form-label">URL</label>
-                                <input type="text" class="form-control mb-2 webhook-url" value="${webhook.urlAbsolute}" placeholder="Webhook URL">
+                                <input type="text" class="form-control mb-2 webhook-url" value="${webhook.url}" placeholder="Webhook URL">
                                 <label for="webhookToken" class="form-label">Token</label>
                                 <input type="text" class="form-control mb-2 webhook-token" value="${webhook.token}" placeholder="Webhook Token">
                                 <label for="webhookHeader" class="form-label">Header</label>
@@ -644,11 +658,13 @@
                         sendReactionAsReply: $('#sendReactionAsReply').is(':checked'),
                         autoConnect: $('#autoConnect').is(':checked'),
                         ignoreBroadcastMessages: $('#ignoreBroadcastMessages').is(':checked'),
+                        connectionType: $('#connectionType').val(),
                         webhooks: []
                     };
 
                     $('#webhooksContainer .webhook').each(function () {
                         const webhook = {
+                            id: $(this).find('.webhook-id').val(),
                             urlAbsolute: $(this).find('.webhook-url').val(),
                             token: $(this).find('.webhook-token').val(),
                             header: $(this).find('.webhook-header').val(),
@@ -698,7 +714,7 @@
                         if (data.status === 'offline' || data.status === 'disconnected') {
                             attemptRegister(number, token);
                         } else if (data.status === 'connecting') {
-                            connectToWebSocket(number);
+                            connectToWebSocket(number, data.qrTimeoutMs);
                         } else if (data.status === 'online') {
                             document.getElementById('qrCodeContainer').innerHTML = '';
                             document.getElementById('qrCodeMessage').textContent = 'Sessão já está Conectada';
@@ -727,8 +743,8 @@
                     if (!response.ok) throw new Error("Erro.");
                     return response.json();
                 })
-                .then(() => {
-                    checkStatusAndRetry(number, token);
+                .then((data) => {
+                    checkStatusAndRetry(number, token, data.qrTimeoutMs);
                 })
                 .catch(error => {
                     alert(error.message);
@@ -736,10 +752,10 @@
             }
 
             // check connecting status
-            function checkStatusAndRetry(number, token) {
+            function checkStatusAndRetry(number, token, qrTimeoutMs) {
                 let attempts = 0;
-                const maxAttempts = 3; 
-                connectToWebSocket(number);
+                const maxAttempts = 3;
+                connectToWebSocket(number, qrTimeoutMs);
 
                 const intervalId = setInterval(() => {
                     fetch(`${apiUrl}/v15.0/${number}`, {
@@ -779,7 +795,7 @@
             }
 
             // conect to websocket 
-            function connectToWebSocket(phoneNumber) {
+            function connectToWebSocket(phoneNumber, qrTimeoutMs) {
                 if (window.socket && window.socket.connected) {
                     console.log("WebSocket já está conectado.");
                     return;
@@ -789,6 +805,7 @@
 
                 const qrcodeDiv = document.getElementById('qrCodeContainer');
                 const statusDiv = document.getElementById('qrCodeMessage');
+                var lastTimeout = undefined;
 
                 socket.on('broadcast', (data) => {
                     if (phoneNumber && data.phone == phoneNumber) {
@@ -796,6 +813,14 @@
                             // Exibe o QR Code
                             qrcodeDiv.innerHTML = `<img src="${data.content}" alt="QR Code">`;
                             statusDiv.textContent = `Leia o QR Code Abaixo`;
+                            const timeoutMs =  qrTimeoutMs - (qrTimeoutMs / 5)
+                            if (lastTimeout) {
+                              clearTimeout(lastTimeout);
+                            }
+                            lastTimeout = setTimeout(function() {
+                              qrcodeDiv.innerHTML = 'Esperando um novo QrCode/PairingCode';
+                              qrcodeDiv.textContent = '';
+                            }, timeoutMs);
                         } else if (data.type === 'status' && data.content) {
                             if (data.content.toLowerCase().indexOf('connected with')  !== -1) {
                                 qrcodeDiv.innerHTML = '';
@@ -803,9 +828,10 @@
                             } else if (data.content.toLowerCase().indexOf('generate qrcode is exceded')  !== -1) {
                                 console.log("QRCODE EXCEDIDO")
                                 qrcodeDiv.innerHTML = '';
-                                statusDiv.textContent = 'Gerando novo QR Code...';
+                                statusDiv.textContent = 'Gerando novo QrCode/PairingCode...';
                                 attemptRegister(phoneNumber, localStorage.getItem(tokenKey));
                             } else {
+                                qrcodeDiv.innerHTML = ''
                                 statusDiv.textContent = `Status: ${data.content}`;
                             }
                         }
@@ -817,7 +843,7 @@
             $('#connectModal').on('hidden.bs.modal', function () {
                 //clear modal status
                 document.getElementById('qrCodeContainer').innerHTML = '';
-                document.getElementById('qrCodeMessage').textContent = 'Aguarde o QrCode';
+                document.getElementById('qrCodeMessage').textContent = 'Aguarde o QrCode/PairingCode';
 
                 //disconnect websocket
                 if (window.socket && window.socket.connected) {

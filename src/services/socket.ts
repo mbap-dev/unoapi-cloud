@@ -11,6 +11,7 @@ import makeWASocket, {
   GroupMetadata,
   Browsers,
   ConnectionState,
+  UserFacingSocketConfig,
 } from 'baileys'
 import MAIN_LOGGER from 'baileys/lib/Utils/logger'
 import { Config, defaultConfig } from './config'
@@ -22,7 +23,7 @@ import { Level } from 'pino'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { useVoiceCallsBaileys } from 'voice-calls-baileys/lib/services/transport.model'
-import { DEFAULT_BROWSER, WHATSAPP_VERSION, LOG_LEVEL, CONNECTING_TIMEOUT_MS } from '../defaults'
+import { DEFAULT_BROWSER, WHATSAPP_VERSION, LOG_LEVEL, CONNECTING_TIMEOUT_MS, MAX_CONNECT_TIME, MAX_CONNECT_RETRY } from '../defaults'
 import { t } from '../i18n'
 
 const EVENTS = [
@@ -141,7 +142,7 @@ export const connect = async ({
 
   const onConnectionUpdate = async (event: Partial<ConnectionState>) => {
     logger.debug('onConnectionUpdate ==> %s %s', phone, JSON.stringify(event))
-    if (event.qr) {
+    if (event.qr && config.connectionType == 'qrcode') {
       if (status.attempt > attempts) {
         const message =  t('attempts_exceeded', attempts)
         logger.debug(message)
@@ -167,13 +168,13 @@ export const connect = async ({
       await sessionStore.setStatus(phone, 'online')
       await onNotification(t('online_session'), true)
     }
-
+    
     switch (event.connection) {
       case 'open':
         await onOpen()
         break
-
-      case 'close':
+        
+        case 'close':
         await onClose(event)
         break
 
@@ -197,6 +198,7 @@ export const connect = async ({
           logger.warn(message)
           await onDisconnected(phone, {})
         }
+        await sessionStore.syncConnection(phone)
       }, CONNECTING_TIMEOUT_MS)
     } else {
       connectingTimeout = null
@@ -227,7 +229,7 @@ export const connect = async ({
       sock = undefined
       return
     }
-    if (await sessionStore.isStatusIsDisconnect(phone)) {
+    if (await sessionStore.isStatusDisconnect(phone)) {
       logger.warn('Already Disconnected %s', phone)
       sock = undefined
       return
@@ -237,7 +239,7 @@ export const connect = async ({
     logger.info(`${phone} disconnected with status: ${statusCode}`)
     if ([DisconnectReason.loggedOut, DisconnectReason.badSession, DisconnectReason.forbidden].includes(statusCode)) {
       status.attempt = 1
-      if (!(await sessionStore.isStatusConnecting(phone))) {
+      if (!await sessionStore.isStatusConnecting(phone)) {
         const message = t('removed')
         await onNotification(message, true)
       }
@@ -247,8 +249,13 @@ export const connect = async ({
       await close()
       const message = t('unique')
       return onNotification(message, true)
-    }
-    if (status.attempt == 1) {
+    } else if (statusCode === DisconnectReason.restartRequired) {
+      const message = t('restart')
+      await onNotification(message, true)
+      await sessionStore.setStatus(phone, 'restart_required')
+      await close()
+      return onReconnect(1)
+    } else if (status.attempt == 1) {
       const detail = lastDisconnect?.error?.output?.payload?.error
       const message = t('closed', statusCode, detail)
       await onNotification(message, true)
@@ -329,7 +336,9 @@ export const connect = async ({
       }
     }
     sock = undefined
-    await sessionStore.setStatus(phone, 'offline')
+    if (!await sessionStore.isStatusRestartRequired(phone)) {
+      await sessionStore.setStatus(phone, 'offline')
+    }
   }
 
   const logout = async () => {
@@ -365,10 +374,12 @@ export const connect = async ({
     if (await sessionStore.isStatusConnecting(phone)) {
       await verifyConnectingTimeout()
       throw new SendError(5, t('connecting_session'))
-    } else if (await sessionStore.isStatusIsDisconnect(phone) || !sock) {
+    } else if (await sessionStore.isStatusDisconnect(phone) || !sock) {
       throw new SendError(3, t('disconnected_session'))
     } else if (await sessionStore.isStatusOffline(phone)) {
       throw new SendError(12, t('offline_session'))
+    } else if (await sessionStore.isStatusBlocked(phone)) {
+      throw new SendError(14, t('blocked', MAX_CONNECT_RETRY, MAX_CONNECT_TIME))
     }
     if (connectingTimeout) {
       clearTimeout(connectingTimeout)
@@ -436,17 +447,9 @@ export const connect = async ({
   }
 
   const connect = async () => {
-    if (await sessionStore.isStatusConnecting(phone)) {
-      logger.warn('Already Connecting %s', phone)
-      return
-    }
-    if (await sessionStore.isStatusOnline(phone)) {
-      logger.warn('Already Connected %s', phone)
-      return
-    }
     logger.debug('Connecting %s', phone)
 
-    const browser: WABrowserDescription = config.ignoreHistoryMessages ? DEFAULT_BROWSER as WABrowserDescription : Browsers.windows('Desktop')
+    let browser: WABrowserDescription = DEFAULT_BROWSER as WABrowserDescription
 
     const loggerBaileys = MAIN_LOGGER.child({})
     logger.level = config.logLevel as Level
@@ -458,25 +461,36 @@ export const connect = async ({
       agent = new SocksProxyAgent(config.proxyUrl)
       fetchAgent = new HttpsProxyAgent(config.proxyUrl)
     }
+    const socketConfig: UserFacingSocketConfig = {
+      auth: state,
+      logger: loggerBaileys,
+      syncFullHistory: !config.ignoreHistoryMessages,
+      version: WHATSAPP_VERSION,
+      getMessage,
+      shouldIgnoreJid: config.shouldIgnoreJid,
+      retryRequestDelayMs: config.retryRequestDelayMs,
+      msgRetryCounterCache,
+      patchMessageBeforeSending,
+      agent,
+      fetchAgent,
+      qrTimeout: config.qrTimeoutMs,
+    }
+    if (config.connectionType == 'pairing_code') {
+      socketConfig.printQRInTerminal = false
+      socketConfig.browser = Browsers.ubuntu('Chrome')
+    } else {
+      if (!config.ignoreHistoryMessages) {
+        browser = Browsers.ubuntu('Desktop')
+      }
+      socketConfig.printQRInTerminal = true
+      socketConfig.browser = browser
+    }
 
     try {
-      sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-        browser,
-        msgRetryCounterCache,
-        syncFullHistory: !config.ignoreHistoryMessages,
-        logger: loggerBaileys,
-        getMessage,
-        shouldIgnoreJid: config.shouldIgnoreJid,
-        retryRequestDelayMs: config.retryRequestDelayMs,
-        patchMessageBeforeSending,
-        agent,
-        fetchAgent,
-        version: WHATSAPP_VERSION,
-      })
+      sock = makeWASocket(socketConfig)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
+      console.log(error, error.isBoom, !error.isServer)
       if (error && error.isBoom && !error.isServer) {
         await onClose({ lastDisconnect: { error } })
       } else {
@@ -489,7 +503,24 @@ export const connect = async ({
     if (sock) {
       dataStore.bind(sock.ev)
       event('creds.update', saveCreds)
-      event('connection.update', onConnectionUpdate)
+      logger.info('Connection type %s already creds %s', config.connectionType, sock?.authState?.creds?.registered)
+      if (config.connectionType == 'pairing_code' && !sock?.authState?.creds?.registered) {
+        logger.info(`Requesting pairing code ${phone}`)
+        try {
+          await sock.waitForConnectionUpdate((update) => !!update.qr)
+          const onlyNumbers = phone.replace(/[^0-9]/g, '')
+          const code = await sock?.requestPairingCode(onlyNumbers)
+          const beatyCode = `${code?.match(/.{1,4}/g)?.join('-')}`
+          const message = t('pairing_code', beatyCode)
+          await onNotification(message, true)
+          event('connection.update', onConnectionUpdate)
+        } catch (error) {
+          console.error(error)
+          throw error
+        }
+      } else {
+        event('connection.update', onConnectionUpdate)
+      }
       if (config.wavoipToken) {
         useVoiceCallsBaileys(config.wavoipToken, sock as any, 'close', true)
       }

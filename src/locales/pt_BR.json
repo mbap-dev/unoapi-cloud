@@ -6,7 +6,7 @@
   "connecting_session": "Espere um momento, conectando a sessão...",
   "invalid_link": "Houve um erro ao recuperar a midia, status %s para o link %s",
 	"attempts_exceeded": "O limite de %s vezes de geração de qrcode foi excedida!",
-	"received_pending_notifications": "Recebendo mensagem enviadas enquanto estava offline",
+	"received_pending_notifications": "Recebendo mensagens enviadas enquanto estava offline",
 	"online_session": "Sessão está online",
 	"connection_timed_out": "Conectando sessão %s excedeu o tempo de %s ms, alterando para desconectado",
 	"connecting": "Conectando...",
@@ -19,5 +19,8 @@
 	"auto_restart": "Configura para reiniciar a sessão a cada %s milliseconds.",
 	"failed_decrypt": "🕒 Não foi possível ler a mensagem. Peça para enviar novamente ou abra o Whatsapp no celular.",
 	"error": "Erro não tratado: %s.",
-	"on_read_qrcode": "Maravilha, leia o qrcode, se ainda não leu. O token de authenticação para essa sessão é %s"
+	"on_read_qrcode": "Maravilha, leia o qrcode, se ainda não leu. O token de authenticação para essa sessão é %s",
+	"pairing_code": "Informe o código para conectar no whatsapp: %s",
+  "restart": "Reiniciando sessão",
+  "blocked": "Sessão bloqueada, esperando pelo tempo configurado para tentar conectar novamente: %s"
 }

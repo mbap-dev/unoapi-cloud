@@ -6,6 +6,8 @@ import { Level } from 'pino'
 
 export const configs: Map<string, Config> = new Map()
 
+export type connectionType = 'qrcode' | 'pairing_code'
+
 export interface GetMessageMetadata {
   <T>(message: T): Promise<T>
 }
@@ -57,9 +59,11 @@ export type Config = {
   authHeader: string | undefined,
   provider: 'baileys',
   server:  string | undefined,
+  connectionType: connectionType,
   wavoipToken:  string | undefined,
   useRedis: boolean,
   useS3: boolean,
+  qrTimeoutMs: number,
 }
 
 export const defaultConfig: Config = {
@@ -109,9 +113,11 @@ export const defaultConfig: Config = {
   authHeader: undefined,
   provider: 'baileys',
   server: UNOAPI_SERVER_NAME,
+  connectionType: 'qrcode',
   wavoipToken: '',
   useRedis: false,
   useS3: false,
+  qrTimeoutMs: 60000
 }
 
 export interface getConfig {
