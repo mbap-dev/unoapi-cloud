@@ -356,7 +356,7 @@
                                 <label for="webhookId" class="form-label">ID</label>
                                 <input type="text" class="form-control mb-2 webhook-id" placeholder="Webhook ID">
                                 <label for="webhookUrl" class="form-label">URL Absoluta</label>
-                                <input type="text" class="form-control mb-2 webhook-url" placeholder="Webhook URL">
+                                <input type="text" class="form-control mb-2 webhook-url" placeholder="Webhook URL Absoluta">
                                 <label for="webhookToken" class="form-label">Token</label>
                                 <input type="text" class="form-control mb-2 webhook-token" placeholder="Webhook Token">
                                 <label for="webhookHeader" class="form-label">Header</label>
@@ -364,6 +364,11 @@
                                 <label for="sendNewMessages" class="form-label">Enviar Novas Mensagens</label>
                                 <label class="switch">
                                     <input type="checkbox" class="webhook-sendNewMessages">
+                                    <span class="slider round"></span>
+                                </label>
+                                <label for="sendGroupMessages" class="form-label">Enviar Mensagens de Grupos</label>
+                                <label class="switch">
+                                    <input type="checkbox" class="webhook-sendGroupMessages">
                                     <span class="slider round"></span>
                                 </label>
                                 <button type="button" class="btn btn-danger btn-sm mt-2 remove-webhook">Remover</button>
@@ -435,8 +440,8 @@
                     <div class="webhook mb-3">
                         <label for="webhookId" class="form-label">ID</label>
                         <input type="text" class="form-control mb-2 webhook-id" placeholder="Webhook ID">
-                        <label for="webhookUrl" class="form-label">URL</label>
-                        <input type="text" class="form-control mb-2 webhook-url" placeholder="Webhook URL">
+                        <label for="webhookUrl" class="form-label">URL Absoluta</label>
+                        <input type="text" class="form-control mb-2 webhook-url" placeholder="Webhook URL Absoluta">
                         <label for="webhookToken" class="form-label">Token</label>
                         <input type="text" class="form-control mb-2 webhook-token" placeholder="Webhook Token">
                         <label for="webhookHeader" class="form-label">Header</label>
@@ -444,6 +449,11 @@
                         <label for="sendNewMessages" class="form-label">Enviar Novas Mensagens</label>
                         <label class="switch">
                             <input type="checkbox" class="webhook-sendNewMessages">
+                            <span class="slider round"></span>
+                        </label>
+                        <label for="sendGroupMessages" class="form-label">Enviar Mensagens de Grupos</label>
+                        <label class="switch">
+                            <input type="checkbox" class="webhook-sendGroupMessages">
                             <span class="slider round"></span>
                         </label>
                         <button type="button" class="btn btn-danger btn-sm mt-2 remove-webhook">Remover</button>
@@ -617,8 +627,8 @@
                             <div class="webhook mb-3">
                                 <label for="webhookId" class="form-label">ID</label>
                                 <input type="text" class="form-control mb-2 webhook-id" value="${webhook.id}" placeholder="Webhook ID">
-                                <label for="webhookUrl" class="form-label">URL</label>
-                                <input type="text" class="form-control mb-2 webhook-url" value="${webhook.url}" placeholder="Webhook URL">
+                                <label for="webhookUrl" class="form-label">URL Absoluta</label>
+                                <input type="text" class="form-control mb-2 webhook-url" value="${webhook.urlAbsolute}" placeholder="Webhook URL Absoluta">
                                 <label for="webhookToken" class="form-label">Token</label>
                                 <input type="text" class="form-control mb-2 webhook-token" value="${webhook.token}" placeholder="Webhook Token">
                                 <label for="webhookHeader" class="form-label">Header</label>
@@ -626,6 +636,11 @@
                                 <label for="sendNewMessages" class="form-label">Enviar Novas Mensagens</label>
                                 <label class="switch">
                                     <input type="checkbox" class="webhook-sendNewMessages" ${webhook.sendNewMessages ? 'checked' : ''}>
+                                    <span class="slider round"></span>
+                                </label>
+                                <label for="sendGroupMessages" class="form-label">Enviar Mensagens de Grupos</label>
+                                <label class="switch">
+                                    <input type="checkbox" class="webhook-sendGroupMessages" ${webhook.sendGroupMessages ? 'checked' : ''}>
                                     <span class="slider round"></span>
                                 </label>
                                 <button type="button" class="btn btn-danger btn-sm mt-2 remove-webhook">Remover</button>
@@ -668,7 +683,8 @@
                             urlAbsolute: $(this).find('.webhook-url').val(),
                             token: $(this).find('.webhook-token').val(),
                             header: $(this).find('.webhook-header').val(),
-                            sendNewMessages: $(this).find('.webhook-sendNewMessages').is(':checked')
+                            sendNewMessages: $(this).find('.webhook-sendNewMessages').is(':checked'),
+                            sendGroupMessages: $(this).find('.webhook-sendGroupMessages').is(':checked')
                         };
                         sessionData.webhooks.push(webhook);
                     });

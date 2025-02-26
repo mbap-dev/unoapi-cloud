@@ -24,7 +24,7 @@ export class SessionStoreRedis extends SessionStore {
 
   async setStatus(phone: string, status: sessionStatus) {
     logger.info(`Session status ${phone} change from ${await this.getStatus(phone)} to ${status}`)
-    if (status == 'online') {
+    if (['online', 'restart_required'].includes(status)) {
       await this.clearConnectCount(phone)
     }
     return setSessionStatus(phone, status)
@@ -34,18 +34,18 @@ export class SessionStoreRedis extends SessionStore {
     return getConnectCount(phone)
   }
 
-  async incrementConnectCount(phone: string) {
-    const count = await this.getConnectCount(phone)
-    await setConnectCount(phone, count + 1, MAX_CONNECT_TIME)
+  async setConnectCount(phone: string, count) {
+    await setConnectCount(phone, count, MAX_CONNECT_TIME)
   }
 
   async clearConnectCount(phone: string) {
-    logger.info('Clear count connect for %s', phone)
-    return clearConnectCount(phone)
+    logger.info('Cleaning count connect for %s..', phone)
+    await clearConnectCount(phone)
+    logger.info('Cleaned count connect for %s!', phone)
   }
 
   async syncConnections() {
-    logger.info(`Syncing lost and blocked connections...`)
+    logger.info(`Syncing lost and standby connections...`)
     try {
       const pattern = sessionStatusKey('*')
       const keys = await redisKeys(pattern)
@@ -54,6 +54,7 @@ export class SessionStoreRedis extends SessionStore {
         const phone = key.replace(toReplaceStatus, '')
         await this.syncConnection(phone)
       }
+      logger.info(`Synced lost and standby connections!`)
     } catch (error) {
       logger.error(error, 'Error on sync lost connecting')
       throw error
@@ -74,8 +75,8 @@ export class SessionStoreRedis extends SessionStore {
       await this.setStatus(phone, 'disconnected')
     }
     const key = sessionStatusKey(phone)
-    if (await redisGet(key) == 'blocked' && await this.getConnectCount(phone) < MAX_CONNECT_RETRY) {
-      logger.info(`Sync ${phone} blocked!`)
+    if (await redisGet(key) == 'standby' && await this.getConnectCount(phone) < MAX_CONNECT_RETRY) {
+      logger.info(`Sync ${phone} standby!`)
       await this.setStatus(phone, 'offline')
     }
   }
