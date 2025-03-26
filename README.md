@@ -317,6 +317,9 @@ Visit `http://localhost:9876/ping` wil be render a "pong!"
   - choose rabbitmq when set AMQP_URL
   - choose s3 when set STORAGE_ envs, if not use file system
 
+`yarn waker` 
+  - move all messages in dead queues(listener, incoming, outgoing, webhooker), to process retry
+
 
 ## Config Options
 ### Config with Environment Variables
@@ -382,6 +385,7 @@ WEBHOOK_SEND_OUTGOING_MESSAGES=true, send outgoing messages to webhook, default 
 IGNORE_GROUP_MESSAGES=false to send group messages received in socket to webhook, default true
 IGNORE_BROADCAST_STATUSES=false to send stories in socket to webhook, default true
 IGNORE_STATUS_MESSAGE=false to send stories in socket to webhook, default true
+READ_ON_RECEIPT=false mark message as read on receipt
 IGNORE_BROADCAST_MESSAGES=false to send broadcast messages in socket to webhook, default false
 IGNORE_HISTORY_MESSAGES=false to import messages when connect, default is true
 IGNORE_OWN_MESSAGES=false to send own messages in socket to webhook, default true

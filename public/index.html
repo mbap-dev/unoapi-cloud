@@ -140,12 +140,16 @@
         }
 
         :root {
-            --bs-breakpoint-xs: 0;        /* Não configurável diretamente */
-            --bs-breakpoint-sm: 480px;    /* Ajuste para o ponto de início do "sm" */
-            --bs-breakpoint-md: 768px;    /* Ajuste para o ponto de início do "md" */
-            --bs-breakpoint-lg: 1024px;   /* Ajuste para o ponto de início do "lg" */
-            --bs-breakpoint-xl: 1300px;   /* Ajuste para o ponto de início do "xl" */
-            --bs-breakpoint-xxl: 1560px;  /* Ajuste para o ponto de início do "xxl" */
+            --bs-breakpoint-xs: 0;        
+            --bs-breakpoint-sm: 480px;    
+            --bs-breakpoint-md: 768px;    
+            --bs-breakpoint-lg: 1024px;  
+            --bs-breakpoint-xl: 1300px;
+            --bs-breakpoint-xxl: 1560px;
+        }
+        .form-label {
+            margin-top: 10px;
+            margin-bottom: -10px;
         }
 
     </style>
@@ -253,16 +257,19 @@
                                 <input type="text" class="form-control" id="rejectCallsWebhook" name="rejectCallsWebhook" placeholder="Estava te ligando...">
                             </div>
                             <div class="col-12 col-md-12 col-lg-6">
-                                <label for="rejectCalls" class="form-label">Mensagem ao Rejeitar Chamadas</label>
-                                <textarea class="form-control" id="rejectCalls" name="rejectCalls" placeholder="Deixe em Branco para não Rejeitar ligações automaticamente">
-                                </textarea>
-                            </div>
-                            <div class="col-12 col-md-12 col-lg-6">
                               <label for="connectionType" class="form-label">Tipo de Conexão</label>
                               <select id="connectionType" name="connectionType" class="form-control">
                                 <option value="qrcode" selected>QrCode</option>
                                 <option value="pairing_code">PairingCode</option>
                               </select>
+                            </div>
+                            <div class="col-12 col-md-12 col-lg-6">
+                                <label for="proxyUrl" class="form-label">Proxy Url (Precisa Reiniciar a Unoapi ao Alterar)</label>
+                                <input type="text" class="form-control" id="proxyUrl" name="proxyUrl" placeholder="Ex: socks5://user:pass@ip/domain:port">
+                            </div>
+                            <div class="col-12 col-md-12 col-lg-6">
+                              <label for="rejectCalls" class="form-label">Mensagem ao Rejeitar Chamadas</label>
+                              <textarea class="form-control" id="rejectCalls" name="rejectCalls" placeholder="Deixe em Branco para não Rejeitar ligações automaticamente" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
                             </div>
                         </div>
                         <div class="row edit-form-row">
@@ -279,6 +286,13 @@
                                     <span class="slider round"></span>
                                 </label>
                                 <label for="ignoreHistoryMessages" class="form-label">Ignorar Histórico de Mensagens</label>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-6 col-xl-4 col-xxl-3">
+                                <label class="switch">
+                                    <input type="checkbox" id="readOnReceipt" name="readOnReceipt" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                                <label for="readOnReceipt" class="form-label">Ler a mensagem ao receber</label>
                             </div>
                             <div class="col-12 col-md-6 col-lg-6 col-xl-4 col-xxl-3">
                                 <label class="switch">
@@ -607,6 +621,7 @@
                 $('#rejectCalls').val(session.rejectCalls);
                 $('#ignoreGroupMessages').prop('checked', session.ignoreGroupMessages);
                 $('#ignoreHistoryMessages').prop('checked', session.ignoreHistoryMessages);
+                $('#readOnReceipt').prop('checked', session.readOnReceipt);
                 $('#sendProfilePicture').prop('checked', session.sendProfilePicture);
                 $('#ignoreOwnMessages').prop('checked', session.ignoreOwnMessages);
                 $('#ignoreYourselfMessages').prop('checked', session.ignoreYourselfMessages);
@@ -618,6 +633,7 @@
                 $('#autoConnect').prop('checked', session.autoConnect);
                 $('#ignoreBroadcastMessages').prop('checked', session.ignoreBroadcastMessages);
                 $('#connectionType').val(session.connectionType);
+                $('#proxyUrl').val(session.proxyUrl);
 
                 // Limpar webhooks existentes no formulário de edição
                 $('#webhooksContainer .webhook').remove();
@@ -664,6 +680,7 @@
                         rejectCallsWebhook: $('#rejectCallsWebhook').val(),
                         ignoreGroupMessages: $('#ignoreGroupMessages').is(':checked'),
                         ignoreHistoryMessages: $('#ignoreHistoryMessages').is(':checked'),
+                        readOnReceipt: $('#readOnReceipt').is(':checked'),
                         sendProfilePicture: $('#sendProfilePicture').is(':checked'),
                         ignoreOwnMessages: $('#ignoreOwnMessages').is(':checked'),
                         ignoreYourselfMessages: $('#ignoreYourselfMessages').is(':checked'),
@@ -675,6 +692,7 @@
                         autoConnect: $('#autoConnect').is(':checked'),
                         ignoreBroadcastMessages: $('#ignoreBroadcastMessages').is(':checked'),
                         connectionType: $('#connectionType').val(),
+                        proxyUrl: $('#proxyUrl').val(),
                         webhooks: []
                     };
 

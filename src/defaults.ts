@@ -73,8 +73,8 @@ export const UNOAPI_JOB_BULK_WEBHOOK = `${UNOAPI_QUEUE_NAME}.bulk.webhook`
 export const UNOAPI_JOB_COMMANDER = `${UNOAPI_QUEUE_NAME}.commander`
 export const UNOAPI_JOB_INCOMING = `${UNOAPI_QUEUE_NAME}.incoming`
 export const UNOAPI_JOB_REVOKER = `${UNOAPI_QUEUE_NAME}.revoker`
-export const UNOAPI_MESSAGE_RETRY_LIMIT = parseInt(process.env.MESSAGE_RETRY_LIMIT || '5')
-export const UNOAPI_MESSAGE_RETRY_DELAY = parseInt(process.env.MESSAGE_RETRY_DELAY || '10000')
+export const UNOAPI_MESSAGE_RETRY_LIMIT = parseInt(process.env.UNOAPI_MESSAGE_RETRY_LIMIT || '5')
+export const UNOAPI_MESSAGE_RETRY_DELAY = parseInt(process.env.UNOAPI_MESSAGE_RETRY_DELAY || '10000')
 export const UNOAPI_DELAY_BETWEEN_MESSAGES_MS = parseInt(process.env.UNOAPI_DELAY_BETWEEN_MESSAGES_MS || '0')
 export const UNOAPI_DELAY_AFTER_FIRST_MESSAGE_MS = parseInt(process.env.UNOAPI_DELAY_AFTER_FIRST_MESSAGE_MS || '0')
 export const UNOAPI_DELAY_AFTER_FIRST_MESSAGE_WEBHOOK_MS = parseInt(process.env.UNOAPI_DELAY_AFTER_FIRST_MESSAGE_WEBHOOK_MS || '0')
@@ -96,6 +96,7 @@ export const COMPOSING_MESSAGE: boolean = process.env.COMPOSING_MESSAGE === _und
 export const IGNORE_GROUP_MESSAGES: boolean = process.env.IGNORE_GROUP_MESSAGES == _undefined ? true : process.env.IGNORE_GROUP_MESSAGES == 'true'
 export const IGNORE_BROADCAST_STATUSES: boolean =
   process.env.IGNORE_BROADCAST_STATUSES === _undefined ? true : process.env.IGNORE_BROADCAST_STATUSES == 'true'
+export const READ_ON_RECEIPT: boolean = process.env.READ_ON_RECEIPT === _undefined ? false : process.env.READ_ON_RECEIPT == 'true'
 export const IGNORE_BROADCAST_MESSAGES: boolean =
   process.env.IGNORE_BROADCAST_MESSAGES === _undefined ? false : process.env.IGNORE_OWN_MESSAGES == 'true'
 export const IGNORE_HISTORY_MESSAGES: boolean =
