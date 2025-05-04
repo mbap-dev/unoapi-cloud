@@ -6,18 +6,17 @@ import { SessionStoreRedis } from './services/session_store_redis'
 import { SessionStore } from './services/session_store'
 import { autoConnect } from './services/auto_connect'
 import { 
-  UNOAPI_JOB_BIND,
-  UNOAPI_JOB_BIND_BRIDGE,
-  UNOAPI_JOB_RELOAD,
-  UNOAPI_JOB_LOGOUT,
+  UNOAPI_QUEUE_BIND,
+  UNOAPI_QUEUE_RELOAD,
+  UNOAPI_QUEUE_LOGOUT,
+  UNOAPI_SERVER_NAME,
+  UNOAPI_EXCHANGE_BRIDGE_NAME,
 } from './defaults'
 import { amqpConsume } from './amqp'
 import { startRedis } from './services/redis'
-import { IncomingAmqp } from './services/incoming_amqp'
 import { getConfig } from './services/config'
 import { getConfigRedis } from './services/config_redis'
 import { getClientBaileys } from './services/client_baileys'
-import { Incoming } from './services/incoming'
 import { onNewLoginGenerateToken } from './services/on_new_login_generate_token'
 import logger from './services/logger'
 import { Listener } from './services/listener'
@@ -30,11 +29,9 @@ import { LogoutBaileys } from './services/logout_baileys'
 import { ReloadJob } from './jobs/reload'
 import { LogoutJob } from './jobs/logout'
 
-const outgoingAmqp: Outgoing = new OutgoingAmqp(getConfigRedis)
-const listenerAmqp: Listener = new ListenerAmqp()
-
 const getConfig: getConfig = getConfigRedis
-
+const outgoingAmqp: Outgoing = new OutgoingAmqp(getConfig)
+const listenerAmqp: Listener = new ListenerAmqp()
 const onNewLogin = onNewLoginGenerateToken(outgoingAmqp)
 const bindJob = new BindBridgeJob()
 const reload = new ReloadBaileys(getClientBaileys, getConfig, listenerAmqp, onNewLogin)
@@ -47,14 +44,41 @@ const startBrigde = async () => {
 
   logger.info('Unoapi Cloud version %s starting bridge...', version)
 
-  logger.info('Starting bind listener consumer')
-  await amqpConsume(UNOAPI_JOB_BIND, UNOAPI_JOB_BIND_BRIDGE, bindJob.consume.bind(bindJob))
+  logger.info('Starting bind consumer')
+  await amqpConsume(
+    UNOAPI_EXCHANGE_BRIDGE_NAME, 
+    `${UNOAPI_QUEUE_BIND}.${UNOAPI_SERVER_NAME}`, 
+    '',
+    bindJob.consume.bind(bindJob),
+    {
+      prefetch: 1,
+      type: 'direct'
+    }
+  )
 
   logger.info('Starting reload consumer')
-  await amqpConsume(UNOAPI_JOB_RELOAD, '', reloadJob.consume.bind(reloadJob))
+  await amqpConsume(
+    UNOAPI_EXCHANGE_BRIDGE_NAME, 
+    `${UNOAPI_QUEUE_RELOAD}.${UNOAPI_SERVER_NAME}`, 
+    '', 
+    reloadJob.consume.bind(reloadJob),
+    {
+      prefetch: 1,
+      type: 'direct'
+    }
+  )
 
   logger.info('Starting logout consumer')
-  await amqpConsume(UNOAPI_JOB_LOGOUT, '', logoutJob.consume.bind(logoutJob))
+  await amqpConsume(
+    UNOAPI_EXCHANGE_BRIDGE_NAME,
+    `${UNOAPI_QUEUE_LOGOUT}.${UNOAPI_SERVER_NAME}`,
+    '', 
+    logoutJob.consume.bind(logoutJob),
+    {
+      prefetch: 1,
+      type: 'direct'
+    }
+  )
 
   const sessionStore: SessionStore = new SessionStoreRedis()
 

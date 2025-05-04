@@ -1,4 +1,4 @@
-import { AnyMessageContent, WAMessage, isJidUser, isLidUser, normalizeMessageContent, proto } from 'baileys'
+import { AnyMessageContent, WAMessage, isJidNewsletter, isJidUser, isLidUser, normalizeMessageContent, proto } from 'baileys'
 import mime from 'mime-types'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import vCard from 'vcf'
@@ -9,6 +9,7 @@ import { t } from '../i18n'
 
 export const TYPE_MESSAGES_TO_PROCESS_FILE = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage', 'ptvMessage']
 
+export const TYPE_MESSAGES_MEDIA = ['image', 'audio', 'document', 'video', 'sticker']
 
 const MESSAGE_STUB_TYPE_ERRORS = [
   'Message absent from node'.toLowerCase(),
@@ -355,6 +356,10 @@ export const extractDestinyPhone = (payload: object) => {
         data.entry[0].changes[0].value.statuses
         && data.entry[0].changes[0].value.statuses[0]
         && data.entry[0].changes[0].value.statuses[0].recipient_id?.replace('+', '')
+      ) || (
+        data.entry[0].changes[0].value.messsages
+        && data.entry[0].changes[0].value.messsages[0]
+        && data.entry[0].changes[0].value.messsages[0].from?.replace('+', '')
       )
     )
   )
@@ -364,10 +369,9 @@ export const extractDestinyPhone = (payload: object) => {
   return number
 }
 
-export const isGroupMessage = (payload: object) => {
+export const getGroupId = (payload: object) => {
   const data = payload as any
-  return !!(
-    (
+  return (
       data.entry
       && data.entry[0]
       && data.entry[0].changes
@@ -380,7 +384,15 @@ export const isGroupMessage = (payload: object) => {
         && data.entry[0].changes[0].value.contacts[0].group_id
       )
     )
-  )
+}
+
+export const isGroupMessage = (payload: object) => {
+  return !!getGroupId(payload)
+}
+
+export const isNewsletterMessage = (payload: object) => {
+  const groupId = getGroupId(payload)
+  return groupId && isJidNewsletter(groupId)
 }
 
 export const isOutgoingMessage = (payload: object) => {
@@ -395,9 +407,14 @@ export const isOutgoingMessage = (payload: object) => {
 }
 
 
+export const isUpdateMessage = (payload: object) => {
+  const data = payload as any
+  return data.entry[0].changes[0].value.statuses && data.entry[0].changes[0].value.statuses[0]
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const jidToPhoneNumber = (value: any, plus = '+', retry = true): string => {
-  if (isLidUser(value)) {
+  if (isLidUser(value) || isJidNewsletter(value)) {
     return value
   }
   const number = (value || '').split('@')[0].split(':')[0].replace('+', '')
@@ -586,7 +603,8 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
 
       case 'editedMessage':
         // {"key":{"remoteJid":"120363193643042227@g.us","fromMe":false,"id":"3EB06C161FED2A9D63C767","participant":"554988290955@s.whatsapp.net"},"messageTimestamp":1698278099,"pushName":"Clairton Rodrigo Heinzen","broadcast":false,"message":{"messageContextInfo":{"deviceListMetadata":{"senderKeyHash":"ltZ5vMXiILth5A==","senderTimestamp":"1697942459","recipientKeyHash":"GVXxipL53tKc2g==","recipientTimestamp":"1697053156"},"deviceListMetadataVersion":2},"editedMessage":{"message":{"protocolMessage":{"key":{"remoteJid":"120363193643042227@g.us","fromMe":true,"id":"3EB03E16AD6F36BFCDD9F5","participant":"554988290955@s.whatsapp.net"},"type":"MESSAGE_EDIT","editedMessage":{"conversation":"Kailaine, reagenda esse pacientes da dra Eloisa que estão em dias diferentes da terça e quinta\\nQuando tiver concluido me avisa para fechar a agendar, pois foi esquecido de fechar a agenda"},"timestampMs":"1698278096189"}}}}}
-        const editedMessage = binMessage.message.protocolMessage[messageType]
+        // {"key":{"remoteJid":"X@s.whatsapp.net","fromMe":false,"id":"X"},"messageTimestamp":1742222988,"pushName":"X","message":{"editedMessage":{"message":{"conversation":"Bom dia, tudo bem?"}}},"verifiedBizName":"X"}
+        const editedMessage = binMessage.message.protocolMessage ? binMessage.message.protocolMessage[messageType] : binMessage.message
         const editedMessagePayload = {
           ...payload,
           message: editedMessage,

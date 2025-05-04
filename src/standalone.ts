@@ -3,12 +3,19 @@ dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || '.env' })
 
 import {
   BASE_URL,
+  NOTIFY_FAILED_MESSAGES,
   PORT,
-  UNOAPI_JOB_BIND,
-  UNOAPI_JOB_BIND_BRIDGE,
-  UNOAPI_JOB_BIND_BROKER,
-  UNOAPI_JOB_LOGOUT,
-  UNOAPI_JOB_RELOAD,
+  UNOAPI_EXCHANGE_BRIDGE_NAME,
+  UNOAPI_EXCHANGE_BROKER_NAME,
+  UNOAPI_QUEUE_BIND,
+  UNOAPI_QUEUE_BLACKLIST_ADD,
+  UNOAPI_QUEUE_LOGOUT,
+  UNOAPI_QUEUE_MEDIA,
+  UNOAPI_QUEUE_NOTIFICATION,
+  UNOAPI_QUEUE_OUTGOING,
+  UNOAPI_QUEUE_OUTGOING_PREFETCH,
+  UNOAPI_QUEUE_RELOAD,
+  UNOAPI_SERVER_NAME,
 } from './defaults'
 
 import logger from './services/logger'
@@ -32,7 +39,15 @@ import { OnNewLogin } from './services/socket'
 import { onNewLoginAlert } from './services/on_new_login_alert'
 import { onNewLoginGenerateToken } from './services/on_new_login_generate_token'
 import { Broadcast } from './services/broadcast'
-import { isInBlacklistInMemory, addToBlacklistInMemory, addToBlacklist, addToBlacklistRedis, addToBlacklistJob, isInBlacklist, isInBlacklistInRedis } from './services/blacklist'
+import { 
+  isInBlacklistInMemory,
+  addToBlacklistInMemory,
+  addToBlacklist,
+  addToBlacklistRedis,
+  addToBlacklistJob,
+  isInBlacklist,
+  isInBlacklistInRedis
+} from './services/blacklist'
 import { Listener } from './services/listener'
 import { ListenerBaileys } from './services/listener_baileys'
 import middleware from './services/middleware'
@@ -46,7 +61,6 @@ import { Reload } from './services/reload'
 import { Logout } from './services/logout'
 import { LogoutAmqp } from './services/logout_amqp'
 import { ReloadJob } from './jobs/reload'
-import { BindBrokerJob } from './jobs/bind_broker'
 import { amqpConnect, amqpConsume } from './amqp'
 import { startRedis } from './services/redis'
 import ContactBaileys from './services/contact_baileys'
@@ -54,6 +68,10 @@ import injectRouteDummy from './services/inject_route_dummy'
 import { Contact } from './services/contact'
 import { LogoutJob } from './jobs/logout'
 import { BindBridgeJob } from './jobs/bind_bridge'
+import atbl from './jobs/add_to_blacklist'
+import { MediaJob } from './jobs/media'
+import { OutgoingJob } from './jobs/outgoing'
+import { NotificationJob } from './jobs/notification'
 
 const broadcast: Broadcast = new Broadcast()
 
@@ -91,23 +109,72 @@ if (process.env.AMQP_URL) {
   })
   addToBlacklistVar = addToBlacklistJob
   outgoing = new OutgoingAmqp(getConfigVar)
-  incoming = new IncomingAmqp()
+  incoming = new IncomingAmqp(getConfigVar)
   listener = new ListenerAmqp()
-  reload = new ReloadAmqp()
-  listener = new ListenerAmqp()
-  logout = new LogoutAmqp()
+  logout = new LogoutAmqp(getConfigVar)
+  reload = new ReloadAmqp(getConfigVar)
   const reloadJob = new ReloadJob(reload)
-  const bindBrokerJob = new BindBrokerJob()
   const bindBridgeJob = new BindBridgeJob()
   const logoutJob = new LogoutJob(logout)
-  logger.info('Starting bind broker consumer')
-  amqpConsume(UNOAPI_JOB_BIND, UNOAPI_JOB_BIND_BROKER, bindBrokerJob.consume.bind(bindBrokerJob))
-  logger.info('Starting bind listener consumer')
-  amqpConsume(UNOAPI_JOB_BIND, UNOAPI_JOB_BIND_BRIDGE, bindBridgeJob.consume.bind(bindBridgeJob))
+  logger.info('Starting bind bridge consumer')
+  amqpConsume(
+    UNOAPI_EXCHANGE_BRIDGE_NAME,
+    `${UNOAPI_QUEUE_BIND}.${UNOAPI_SERVER_NAME}`,
+    '*',
+    bindBridgeJob.consume.bind(bindBridgeJob),
+    { type: 'direct' }
+  )
   logger.info('Starting reload consumer')
-  amqpConsume(UNOAPI_JOB_RELOAD, '', reloadJob.consume.bind(reloadJob))
+  amqpConsume(
+    UNOAPI_EXCHANGE_BRIDGE_NAME,
+    `${UNOAPI_QUEUE_RELOAD}.${UNOAPI_SERVER_NAME}`,
+    '',
+    reloadJob.consume.bind(reloadJob),
+    { type: 'direct' }
+  )
   logger.info('Starting logout consumer')
-  amqpConsume(UNOAPI_JOB_LOGOUT, '', logoutJob.consume.bind(logoutJob))
+  amqpConsume(
+    UNOAPI_EXCHANGE_BRIDGE_NAME,
+    `${UNOAPI_QUEUE_LOGOUT}.${UNOAPI_SERVER_NAME}`,
+    '',
+    logoutJob.consume.bind(logoutJob),
+    { type: 'direct' }
+  )
+  logger.info('Starting media consumer')
+  const mediaJob = new MediaJob(getConfigVar)
+  amqpConsume(UNOAPI_EXCHANGE_BROKER_NAME, UNOAPI_QUEUE_MEDIA, '*', mediaJob.consume.bind(mediaJob), { type: 'topic' })
+  const prefetch = UNOAPI_QUEUE_OUTGOING_PREFETCH
+  logger.info('Binding queues consumer for server %s', UNOAPI_SERVER_NAME)
+  const notifyFailedMessages = NOTIFY_FAILED_MESSAGES
+  logger.info('Starting outgoing consumer %s', UNOAPI_SERVER_NAME)
+  const outgoingCloudApi: Outgoing = new OutgoingCloudApi(getConfigRedis, isInBlacklistInRedis)
+  const outgoinJob = new OutgoingJob(getConfigVar, outgoingCloudApi)
+  amqpConsume(
+    UNOAPI_EXCHANGE_BROKER_NAME,
+    UNOAPI_QUEUE_OUTGOING,
+    '*',
+    outgoinJob.consume.bind(outgoinJob), 
+    { notifyFailedMessages, prefetch, type: 'topic' }
+  )
+  if (notifyFailedMessages) {
+    logger.debug('Starting notification consumer %s', UNOAPI_SERVER_NAME)
+    const notificationJob = new NotificationJob(incoming)
+    amqpConsume(
+      UNOAPI_EXCHANGE_BROKER_NAME,
+      UNOAPI_QUEUE_NOTIFICATION,
+      '*',
+      notificationJob.consume.bind(notificationJob),
+      { notifyFailedMessages: false, type: 'topic' })
+  }
+
+  logger.info('Starting blacklist add consumer %s', UNOAPI_SERVER_NAME)
+  amqpConsume(
+    UNOAPI_EXCHANGE_BROKER_NAME,
+    UNOAPI_QUEUE_BLACKLIST_ADD,
+    '*',
+    atbl,
+    { notifyFailedMessages, prefetch, type: 'topic' }
+  )
 } else {
   logger.info('Starting standard mode')
 }

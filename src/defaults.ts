@@ -16,12 +16,19 @@ export const DEFAULT_LOCALE = process.env.DEFAULT_LOCALE || 'en'
 export const VALIDATE_MEDIA_LINK_BEFORE_SEND = 
   process.env.VALIDATE_MEDIA_LINK_BEFORE_SEND == _undefined ? false : process.env.VALIDATE_MEDIA_LINK_BEFORE_SEND == 'true'
 
+export const WEBHOOK_FORWARD_PHONE_NUMBER_ID = process.env.WEBHOOK_FORWARD_PHONE_NUMBER_ID || ''
+export const WEBHOOK_FORWARD_BUSINESS_ACCOUNT_ID = process.env.WEBHOOK_FORWARD_BUSINESS_ACCOUNT_ID || ''
+export const WEBHOOK_FORWARD_TOKEN = process.env.WEBHOOK_FORWARD_TOKEN || ''
+export const WEBHOOK_FORWARD_VERSION = process.env.WEBHOOK_FORWARD_VERSION || 'v17.0'
+export const WEBHOOK_FORWARD_URL = process.env.WEBHOOK_FORWARD_URL || 'https://graph.facebook.com'
+export const WEBHOOK_FORWARD_TIMEOUT_MS = parseInt(process.env.WEBHOOK_TIMEOUT_MS || '360000')
+
 // comunication
 export const UNOAPI_URL = process.env.UNOAPI_URL || 'http://localhost:9876'
 export const WEBHOOK_URL_ABSOLUTE = process.env.WEBHOOK_URL_ABSOLUTE || ''
-export const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:9876/webhooks/whatsapp'
+export const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:9876/webhooks/fake'
 export const WEBHOOK_HEADER = process.env.WEBHOOK_HEADER || 'Authorization'
-export const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN || '123abc'
+export const WEBHOOK_TOKEN = process.env.WEBHOOK_TOKEN || UNOAPI_AUTH_TOKEN || '123abc'
 export const WEBHOOK_TIMEOUT_MS = parseInt(process.env.WEBHOOK_TIMEOUT_MS || '360000')
 export const FETCH_TIMEOUT_MS = parseInt(process.env.FETCH_TIMEOUT_MS || '360000')
 export const CONNECTION_TYPE = process.env.CONNECTION_TYPE || 'qrcode'
@@ -31,6 +38,10 @@ export const WEBHOOK_SEND_NEW_MESSAGES = process.env.WEBHOOK_SEND_NEW_MESSAGES =
 export const WEBHOOK_SEND_GROUP_MESSAGES = process.env.WEBHOOK_SEND_GROUP_MESSAGES == _undefined ? true : process.env.WEBHOOK_SEND_GROUP_MESSAGES == 'true'
 export const WEBHOOK_SEND_OUTGOING_MESSAGES =
   process.env.WEBHOOK_SEND_OUTGOING_MESSAGES == _undefined ? true : process.env.WEBHOOK_SEND_OUTGOING_MESSAGES == 'true'
+export const WEBHOOK_SEND_UPDATE_MESSAGES =
+  process.env.WEBHOOK_SEND_UPDATE_MESSAGES == _undefined ? true : process.env.WEBHOOK_SEND_UPDATE_MESSAGES == 'true'
+export const WEBHOOK_SEND_NEWSLETTER_MESSAGES =
+  process.env.WEBHOOK_SEND_NEWSLETTER_MESSAGES == _undefined ? false : process.env.WEBHOOK_SEND_NEWSLETTER_MESSAGES == 'true'
 export const WEBHOOK_SESSION = process.env.WEBHOOK_SESSION || ''
 export const AMQP_URL = process.env.AMQP_URL || 'amqp://guest:guest@localhost:5672'
 export const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
@@ -47,32 +58,33 @@ export const DATA_TTL: number = parseInt(process.env.DATA_TTL || `${60 * 60 * 24
 export const DATA_URL_TTL: number = parseInt(process.env.DATA_URL_TTL || `${60 * 60 * 24 * 3}`) // tree days
 export const DATA_JID_TTL: number = parseInt(process.env.DATA_JID_TTL || `${60 * 60 * 24 * 7}`) // a week
 export const SESSION_TTL: number = parseInt(process.env.SESSION_TTL || '-1')
-export const UNOAPI_X_COUNT_RETRIES = process.env.UNOAPI_X_COUNT_RETRIES || 'x-unoapi-count-retries'
-export const UNOAPI_X_MAX_RETRIES = process.env.UNOAPI_X_MAX_RETRIES || 'x-unoapi-max-retries'
+export const UNOAPI_X_COUNT_RETRIES: string = process.env.UNOAPI_X_COUNT_RETRIES || 'x-unoapi-count-retries'
+export const UNOAPI_X_MAX_RETRIES: string = process.env.UNOAPI_X_MAX_RETRIES || 'x-unoapi-max-retries'
+export const UNOAPI_EXCHANGE_NAME = process.env.UNOAPI_EXCHANGE_NAME || 'unoapi'
+export const UNOAPI_EXCHANGE_BROKER_NAME =`${UNOAPI_EXCHANGE_NAME}.broker`
+export const UNOAPI_EXCHANGE_BRIDGE_NAME = `${UNOAPI_EXCHANGE_NAME}.brigde`
 export const UNOAPI_QUEUE_NAME = process.env.UNOAPI_QUEUE_NAME || 'unoapi'
-export const UNOAPI_JOB_WEBHOOKER = `${UNOAPI_QUEUE_NAME}.webhooker`
-export const UNOAPI_JOB_OUTGOING_PREFETCH = parseInt(process.env.UNOAPI_JOB_OUTGOING_PREFETCH || '1')
-export const UNOAPI_JOB_MEDIA = `${UNOAPI_QUEUE_NAME}.media`
-export const UNOAPI_JOB_NOTIFICATION = `${UNOAPI_QUEUE_NAME}.notification`
-export const UNOAPI_JOB_LISTENER = `${UNOAPI_QUEUE_NAME}.baileys.listener`
-export const UNOAPI_JOB_BLACKLIST_ADD = `${UNOAPI_QUEUE_NAME}.webhooker.blacklist.add`
-export const UNOAPI_JOB_BLACKLIST_RELOAD = `${UNOAPI_QUEUE_NAME}.webhooker.blacklist.reload`
-export const UNOAPI_JOB_BIND = `${UNOAPI_QUEUE_NAME}.bind`
-export const UNOAPI_JOB_BIND_BRIDGE = `${UNOAPI_SERVER_NAME}.bridge`
-export const UNOAPI_JOB_BIND_BROKER = `${UNOAPI_QUEUE_NAME}.broker`
-export const UNOAPI_JOB_OUTGOING = `${UNOAPI_QUEUE_NAME}.outgoing`
-export const UNOAPI_JOB_CONTACT = `${UNOAPI_QUEUE_NAME}.contact`
-export const UNOAPI_JOB_BULK_PARSER = `${UNOAPI_QUEUE_NAME}.bulk.parser`
-export const UNOAPI_JOB_RELOAD = `${UNOAPI_QUEUE_NAME}.reload`
-export const UNOAPI_JOB_BROADCAST = `${UNOAPI_QUEUE_NAME}.broadcast`
-export const UNOAPI_JOB_LOGOUT = `${UNOAPI_QUEUE_NAME}.logout`
-export const UNOAPI_JOB_BULK_SENDER = `${UNOAPI_QUEUE_NAME}.bulk.sender`
-export const UNOAPI_JOB_BULK_STATUS = `${UNOAPI_QUEUE_NAME}.bulk.status`
-export const UNOAPI_JOB_BULK_REPORT = `${UNOAPI_QUEUE_NAME}.bulk.report`
-export const UNOAPI_JOB_BULK_WEBHOOK = `${UNOAPI_QUEUE_NAME}.bulk.webhook`
-export const UNOAPI_JOB_COMMANDER = `${UNOAPI_QUEUE_NAME}.commander`
-export const UNOAPI_JOB_INCOMING = `${UNOAPI_QUEUE_NAME}.incoming`
-export const UNOAPI_JOB_REVOKER = `${UNOAPI_QUEUE_NAME}.revoker`
+export const UNOAPI_QUEUE_OUTGOING_PREFETCH = parseInt(process.env.UNOAPI_QUEUE_OUTGOING_PREFETCH || '1')
+export const UNOAPI_QUEUE_DELAYED = `${UNOAPI_QUEUE_NAME}.delayed`
+export const UNOAPI_QUEUE_FAILED = `${UNOAPI_QUEUE_NAME}.failed`
+export const UNOAPI_QUEUE_MEDIA = `${UNOAPI_QUEUE_NAME}.media`
+export const UNOAPI_QUEUE_NOTIFICATION = `${UNOAPI_QUEUE_NAME}.notification`
+export const UNOAPI_QUEUE_LISTENER = `${UNOAPI_QUEUE_NAME}.listener`
+export const UNOAPI_QUEUE_BLACKLIST_ADD = `${UNOAPI_QUEUE_NAME}.blacklist.add`
+export const UNOAPI_QUEUE_BLACKLIST_RELOAD = `${UNOAPI_QUEUE_NAME}.blacklist.reload`
+export const UNOAPI_QUEUE_BIND = `${UNOAPI_QUEUE_NAME}.bind`
+export const UNOAPI_QUEUE_OUTGOING = `${UNOAPI_QUEUE_NAME}.outgoing`
+export const UNOAPI_QUEUE_CONTACT = `${UNOAPI_QUEUE_NAME}.contact`
+export const UNOAPI_QUEUE_BULK_PARSER = `${UNOAPI_QUEUE_NAME}.bulk.parser`
+export const UNOAPI_QUEUE_RELOAD = `${UNOAPI_QUEUE_NAME}.reload`
+export const UNOAPI_QUEUE_BROADCAST = `${UNOAPI_QUEUE_NAME}.broadcast`
+export const UNOAPI_QUEUE_LOGOUT = `${UNOAPI_QUEUE_NAME}.logout`
+export const UNOAPI_QUEUE_BULK_SENDER = `${UNOAPI_QUEUE_NAME}.bulk.sender`
+export const UNOAPI_QUEUE_BULK_STATUS = `${UNOAPI_QUEUE_NAME}.bulk.status`
+export const UNOAPI_QUEUE_BULK_REPORT = `${UNOAPI_QUEUE_NAME}.bulk.report`
+export const UNOAPI_QUEUE_BULK_WEBHOOK = `${UNOAPI_QUEUE_NAME}.bulk.webhook`
+export const UNOAPI_QUEUE_COMMANDER = `${UNOAPI_QUEUE_NAME}.commander`
+export const UNOAPI_QUEUE_INCOMING = `${UNOAPI_QUEUE_NAME}.incoming`
 export const UNOAPI_MESSAGE_RETRY_LIMIT = parseInt(process.env.UNOAPI_MESSAGE_RETRY_LIMIT || '5')
 export const UNOAPI_MESSAGE_RETRY_DELAY = parseInt(process.env.UNOAPI_MESSAGE_RETRY_DELAY || '10000')
 export const UNOAPI_DELAY_BETWEEN_MESSAGES_MS = parseInt(process.env.UNOAPI_DELAY_BETWEEN_MESSAGES_MS || '0')
@@ -94,6 +106,7 @@ export const BASE_STORE = process.env.UNOAPI_BASE_STORE || process.env.BASE_STOR
 export const AUTO_CONNECT: boolean = process.env.AUTO_CONNECT === _undefined ? true : process.env.AUTO_CONNECT == 'true'
 export const COMPOSING_MESSAGE: boolean = process.env.COMPOSING_MESSAGE === _undefined ? false : process.env.COMPOSING_MESSAGE == 'true'
 export const IGNORE_GROUP_MESSAGES: boolean = process.env.IGNORE_GROUP_MESSAGES == _undefined ? true : process.env.IGNORE_GROUP_MESSAGES == 'true'
+export const IGNORE_NEWSLETTER_MESSAGES: boolean = process.env.IGNORE_NEWSLETTER_MESSAGES == _undefined ? true : process.env.IGNORE_NEWSLETTER_MESSAGES == 'true'
 export const IGNORE_BROADCAST_STATUSES: boolean =
   process.env.IGNORE_BROADCAST_STATUSES === _undefined ? true : process.env.IGNORE_BROADCAST_STATUSES == 'true'
 export const READ_ON_RECEIPT: boolean = process.env.READ_ON_RECEIPT === _undefined ? false : process.env.READ_ON_RECEIPT == 'true'
@@ -127,6 +140,7 @@ export const CONFIG_SESSION_PHONE_CLIENT = process.env.CONFIG_SESSION_PHONE_CLIE
 export const CONFIG_SESSION_PHONE_NAME = process.env.CONFIG_SESSION_PHONE_NAME || 'Chrome'
 export const MESSAGE_CHECK_WAAPP = process.env.MESSAGE_CHECK_WAAPP || ''
 export const WHATSAPP_VERSION = JSON.parse(process.env.WHATSAPP_VERSION || `[${DEFAULT_CONNECTION_CONFIG.version}]`) as WAVersion
+export const AVAILABLE_LOCALES = JSON.parse(process.env.AVAILABLE_LOCALES || '["en", "pt_BR", "pt"]')
 export const WAVOIP_TOKEN = process.env.WAVOIP_TOKEN || ''
 export const ONLY_HELLO_TEMPLATE: boolean = process.env.ONLY_HELLO_TEMPLATE === _undefined ? false : process.env.ONLY_HELLO_TEMPLATE == 'true'
 export const DEFAULT_BROWSER = [CONFIG_SESSION_PHONE_CLIENT, CONFIG_SESSION_PHONE_NAME, release()]

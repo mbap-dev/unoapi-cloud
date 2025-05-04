@@ -1,5 +1,5 @@
 import { MessageFilter } from './message_filter'
-import { getConfig, defaultConfig, Config, configs, Webhook, connectionType } from './config'
+import { getConfig, defaultConfig, Config, configs, connectionType } from './config'
 import logger from './logger'
 import { Level } from 'pino'
 
@@ -41,6 +41,15 @@ import {
   CONNECTION_TYPE,
   QR_TIMEOUT_MS,
   READ_ON_RECEIPT,
+  IGNORE_NEWSLETTER_MESSAGES,
+  WEBHOOK_SEND_NEWSLETTER_MESSAGES,
+  WEBHOOK_SEND_UPDATE_MESSAGES,
+  WEBHOOK_FORWARD_URL,
+  WEBHOOK_FORWARD_VERSION,
+  WEBHOOK_FORWARD_PHONE_NUMBER_ID,
+  WEBHOOK_FORWARD_TOKEN,
+  WEBHOOK_FORWARD_TIMEOUT_MS,
+  WEBHOOK_FORWARD_BUSINESS_ACCOUNT_ID,
 } from '../defaults'
 
 export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> => {
@@ -48,6 +57,7 @@ export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> 
     const config: Config = { ...defaultConfig }
     config.logLevel = LOG_LEVEL as Level
     config.ignoreGroupMessages = IGNORE_GROUP_MESSAGES
+    config.ignoreNewsletterMessages = IGNORE_NEWSLETTER_MESSAGES
     config.readOnReceipt = READ_ON_RECEIPT
     config.ignoreBroadcastStatuses = IGNORE_BROADCAST_STATUSES
     config.ignoreBroadcastMessages = IGNORE_BROADCAST_MESSAGES
@@ -85,6 +95,17 @@ export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> 
     config.webhooks[0].sendNewMessages = WEBHOOK_SEND_NEW_MESSAGES
     config.webhooks[0].sendGroupMessages = WEBHOOK_SEND_GROUP_MESSAGES
     config.webhooks[0].sendOutgoingMessages = WEBHOOK_SEND_OUTGOING_MESSAGES
+    config.webhooks[0].sendNewsletterMessages = WEBHOOK_SEND_NEWSLETTER_MESSAGES
+    config.webhooks[0].sendUpdateMessages = WEBHOOK_SEND_UPDATE_MESSAGES
+
+    config.webhookForward.url = WEBHOOK_FORWARD_URL
+    config.webhookForward.version = WEBHOOK_FORWARD_VERSION
+    config.webhookForward.phoneNumberId = WEBHOOK_FORWARD_PHONE_NUMBER_ID
+    config.webhookForward.businessAccountId = WEBHOOK_FORWARD_BUSINESS_ACCOUNT_ID
+    config.webhookForward.token = WEBHOOK_FORWARD_TOKEN
+    config.webhookForward.version = WEBHOOK_FORWARD_VERSION
+    config.webhookForward.timeoutMs = WEBHOOK_FORWARD_TIMEOUT_MS
+
     const filter: MessageFilter = new MessageFilter(phone, config)
     config.shouldIgnoreJid = filter.isIgnoreJid.bind(filter)
     config.shouldIgnoreKey = filter.isIgnoreKey.bind(filter)

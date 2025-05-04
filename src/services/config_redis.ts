@@ -26,14 +26,25 @@ export const getConfigRedis: getConfig = async (phone: string): Promise<Config> 
                 }
               });
               webhooks.push(webhook)
-            });
+            })
             configRedis[key] = webhooks
+          } else if (key === 'webhookForward'){
+            const webhookForward = configRedis[key]
+            Object.keys(configRedis[key]).forEach((k) => {
+              if (!webhookForward[k]) {
+                webhookForward[k] = config[key][k]
+              }
+            })
+            configRedis[key] = webhookForward
           }
           logger.debug('Override env config by redis config in %s: %s => %s', phone, key, JSON.stringify(configRedis[key]));
           config[key] = configRedis[key];
         }
       });
     }
+
+    config.server = config.server || 'server_1'
+    config.provider = config.provider || 'baileys'
     
     const filter: MessageFilter = new MessageFilter(phone, config)
     config.shouldIgnoreJid = filter.isIgnoreJid.bind(filter)

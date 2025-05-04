@@ -3,12 +3,13 @@
   "invalid_phone_number": "O número telefone %s esta inválido!",
   "offline_session": "Sessão desligada, tentando conectar...",
   "disconnected_session": "Sessão desconectada, por favor envie um mensagem e leia o qrcode se for necessário",
+  "reloaded_session": "Sessão terminada, envie uma mensagem para conectar novamente",
   "connecting_session": "Espere um momento, conectando a sessão...",
   "invalid_link": "Houve um erro ao recuperar a midia, status %s para o link %s",
 	"attempts_exceeded": "O limite de %s vezes de geração de qrcode foi excedida!",
 	"received_pending_notifications": "Recebendo mensagens enviadas enquanto estava offline",
 	"online_session": "Sessão está online",
-	"connection_timed_out": "Conectando sessão %s excedeu o tempo de %s ms, alterando para desconectado",
+	"connection_timed_out": "A sessão %s excedeu o tempo de %s ms para conectar, sessão alterada para estado Offline",
 	"connecting": "Conectando...",
 	"connected": "Conectado com o número %s utilizando a versao do Whatsapp v%s, e a útima versão seria v%s, hora atual %s",
 	"removed": "A sessão foi removida no aplicativo do Whatsapp, envie uma mesagem para gerar o qrcode e conectar novamente!",
@@ -22,6 +23,9 @@
 	"on_read_qrcode": "Maravilha, leia o qrcode, se ainda não leu. O token de authenticação para essa sessão é %s",
 	"pairing_code": "Informe o código para conectar no whatsapp: %s",
   "restart": "Reiniciando sessão",
-  "standby": "Sessão coloca em standby, esperando pelo tempo configurado para tentar conectar novamente: %s",
-  "proxy_error": "Erro ao conectar no proxy: %s"
+  "standby": "Sessão colocada em standby, esperando pelo tempo configurado para tentar conectar novamente: %s",
+  "proxy_error": "Erro ao conectar no proxy: %s",
+  "session_conflict": "O número the sessão usado é o %s mas o número da configuração é %s",
+  "waiting_information": "Esperando por qrcode/pairing code",
+  "reload": "Recarregar"
 }

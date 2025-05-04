@@ -3,6 +3,7 @@
 	"invalid_phone_number": "The phone number %s is invalid!",
 	"offline_session": "offline session, connecting....",
 	"disconnected_session": "disconnect number, please send a message do try reconnect and read qr code if necessary",
+  "reloaded_session": "Session reloaded, send a message to connect again",
 	"connecting_session": "Wait a moment, connecting process",
   "invalid_link": "Error on retrieve media, http status %s in link %s",
 	"attempts_exceeded": "The %s times of generate qrcode is exceeded!",
@@ -23,5 +24,8 @@
 	"pairing_code": "Open your WhatsApp and go to: Connected Devices > Connect a new Device > Connect using phone number > And put your connection code > %s",
   "restart": "Restarting session",
   "standby": "Standby session, waiting for time configured to try connect again, %s error in %s seconds",
-  "proxy_error": "Error on connect to proxy: %s"
+  "proxy_error": "Error on connect to proxy: %s",
+  "session_conflict": "The session number is %s but the configured number %s",
+  "waiting_information": "Waiting for qrcode/pairing code",
+  "reload": "Reload"
 }
