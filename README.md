@@ -40,7 +40,7 @@ To send a message
 
 ```sh
 curl -i -X POST \
-http://localhost:9876/v15.0/5549988290955/messages \
+http://localhost:9876/v15.0/554931978550/messages \
 -H 'Content-Type: application/json' \
 -H 'Authorization: 1' \
 -d '{
@@ -234,6 +234,7 @@ with:
 * 11 - Http Head test link not return success
 * 12 - offline session, connecting....
 * 14 - standby session, waiting for time configured
+* 15 - realoaded session, send message do connect again
 
 
 
@@ -318,7 +319,7 @@ Visit `http://localhost:9876/ping` wil be render a "pong!"
   - choose s3 when set STORAGE_ envs, if not use file system
 
 `yarn waker` 
-  - move all messages in dead queues(listener, incoming, outgoing, webhooker), to process retry
+  - move all messages in dead queues(listener, incoming, outgoing), to process retry
 
 
 ## Config Options
@@ -330,7 +331,8 @@ This a general env:
 
 ```env
 CONSUMER_TIMEOUT_MS=miliseconds in timeout for consume job, default is 30000
-DEFAULT_LOCALE=locale for notifications status, now possibile is en, pt_BR and pt, default is en
+AVAILABLE_LOCALES=default is `["en", "pt_BR", "pt"]`
+DEFAULT_LOCALE=locale for notifications status, now possibile is en, pt_BR and pt, default is en, to add new, use docker volume for exempla `/app/dist/src/locales/custom.json` and add `custom` in `AVAILABLE_LOCALES`
 ONLY_HELLO_TEMPLATE=true sets hello template as the only default template, default false.
 MAX_CONNECT_RETRY=3 max call connect with error in MAX_CONNECT_TIME
 MAX_CONNECT_TIME=3000 interval of max connect, 5 minutes
@@ -349,7 +351,7 @@ UNOAPI_DELAY_BETWEEN_MESSAGES_MS=to not duplicate timestamp message. default 0
 CLEAN_CONFIG_ON_DISCONNECT=true to clean all saved redis configurations on disconnect number, default is false
 CONFIG_SESSION_PHONE_CLIENT=Unoapi Name that will be displayed on smartphone connection
 CONFIG_SESSION_PHONE_NAME=Chrome Browser Name = Chrome | Firefox | Edge | Opera | Safari
-WHATSAPP_VERSION=Version of whatsapp, default to local Baileys version.
+WHATSAPP_VERSION=Version of whatsapp, default to local Baileys version. Format is `[2, 3000, 1019810866]`
 ```
 
 Bucket env to config assets media compatible with S3, this config can't save in redis:
@@ -382,8 +384,10 @@ WEBHOOK_TIMEOUT_MS=webhook request timeout, default 5000 ms
 WEBHOOK_SEND_NEW_MESSAGES=true, send new messages to webhook, caution with this, messages will be duplicated, default is false
 WEBHOOK_SEND_GROUP_MESSAGES=true, send group messages to webhook, default is true
 WEBHOOK_SEND_OUTGOING_MESSAGES=true, send outgoing messages to webhook, default is true
+WEBHOOK_SEND_UPDATE_MESSAGES=true, send update messages sent, delivered, read
 IGNORE_GROUP_MESSAGES=false to send group messages received in socket to webhook, default true
 IGNORE_BROADCAST_STATUSES=false to send stories in socket to webhook, default true
+IGNORE_NEWSLETTER_MESSAGES=false to ignore newsletter
 IGNORE_STATUS_MESSAGE=false to send stories in socket to webhook, default true
 READ_ON_RECEIPT=false mark message as read on receipt
 IGNORE_BROADCAST_MESSAGES=false to send broadcast messages in socket to webhook, default false
@@ -403,6 +407,12 @@ NOTIFY_FAILED_MESSAGES=true send message to your self in whatsapp when message f
 SEND_REACTION_AS_REPLY=true to send reactions as replay, default false
 SEND_PROFILE_PICTURE=true to send profile picture users and groups, default is true
 PROXY_URL=the socks proxy url, default not use
+WEBHOOK_FORWARD_PHONE_NUMBER_ID=the phone number id of whatsapp cloud api, default is empty
+WEBHOOK_FORWARD_BUSINESS_ACCOUNT_ID=the business account id of whatsapp cloud api, default is empty
+WEBHOOK_FORWARD_TOKEN=the token of whatsapp cloud api, default is empty
+WEBHOOK_FORWARD_VERSION=the version of whatsapp cloud api, default is v17.0
+WEBHOOK_FORWARD_URL=the url of whatsapp cloud api, default is https://graph.facebook.com
+WEBHOOK_FORWARD_TIMEOUT_MS=the timeout for request to whatsapp cloud api, default is 360000
 ```
 
 ### Config session with redis
@@ -683,8 +693,10 @@ Mail to sales@unoapi.cloud
 - Disappearing messages: https://github.com/WhiskeySockets/Baileys#disappearing-messages
 - Send Stories: https://github.com/WhiskeySockets/Baileys#broadcast-lists--stories
 - Filter by specific date on sync history: https://github.com/WhiskeySockets/Baileys?tab=readme-ov-file#receive-full-history
+- Add /health endpoint with test connection with redis, s3 and rabbitmq
+
+## Ready
 - Connect with pairing code: https://github.com/WhiskeySockets/Baileys#starting-socket-with-pairing-code
 - Counting connection retry attempts even when restarting to prevent looping messages
-- Add /health endpoint with test connection with redis, s3 and rabbitmq
 - Message delete endpoint
 - Send reply message with please to send again, when any error and message enqueue in .dead

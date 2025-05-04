@@ -1,4 +1,3 @@
-import { UNOAPI_SERVER_NAME } from '../defaults'
 import { getStore } from './store'
 import { getStoreFile } from './store_file'
 import { WAMessageKey } from 'baileys'
@@ -6,7 +5,7 @@ import { Level } from 'pino'
 
 export const configs: Map<string, Config> = new Map()
 
-export type connectionType = 'qrcode' | 'pairing_code'
+export type connectionType = 'qrcode' | 'pairing_code' | 'forward'
 
 export interface GetMessageMetadata {
   <T>(message: T): Promise<T>
@@ -22,12 +21,24 @@ export type Webhook = {
   header: string
   timeoutMs: number
   sendNewMessages: boolean
+  sendUpdateMessages: boolean
   sendGroupMessages: boolean
   sendOutgoingMessages: boolean
+  sendNewsletterMessages: boolean
+}
+
+export type WebhookForward = {
+  url: string
+  phoneNumberId: string
+  businessAccountId: string
+  token: string
+  version: string
+  timeoutMs: number
 }
 
 export type Config = {
   ignoreGroupMessages: boolean
+  ignoreNewsletterMessages: boolean
   ignoreBroadcastMessages: boolean
   ignoreBroadcastStatuses: boolean
   readOnReceipt: boolean
@@ -51,24 +62,28 @@ export type Config = {
   getStore: getStore
   baseStore: string
   webhooks: Webhook[]
+  webhookForward: WebhookForward | Partial<WebhookForward>
   logLevel: Level
   getMessageMetadata: GetMessageMetadata
   ignoreDataStore: boolean
   sendReactionAsReply: boolean
   sendProfilePicture: boolean
   authToken: string | undefined
-  authHeader: string | undefined,
-  provider: 'baileys',
-  server:  string | undefined,
-  connectionType: connectionType,
-  wavoipToken:  string | undefined,
-  useRedis: boolean,
-  useS3: boolean,
-  qrTimeoutMs: number,
+  authHeader: string | undefined
+  provider: 'baileys' | 'forwarder' | undefined
+  server:  string | undefined
+  connectionType: connectionType
+  wavoipToken:  string | undefined
+  useRedis: boolean
+  useS3: boolean
+  qrTimeoutMs: number
+  label: string
+  overrideWebhooks: boolean
 }
 
 export const defaultConfig: Config = {
   ignoreGroupMessages: true,
+  ignoreNewsletterMessages: true,
   ignoreBroadcastStatuses: true,
   ignoreBroadcastMessages: false,
   readOnReceipt: false,
@@ -102,10 +117,13 @@ export const defaultConfig: Config = {
       header: '',
       timeoutMs: 5_000,
       sendNewMessages: false,
+      sendNewsletterMessages: false,
       sendGroupMessages: true,
       sendOutgoingMessages: true,
+      sendUpdateMessages: true,
     },
   ],
+  webhookForward: {},
   getMessageMetadata: getMessageMetadataDefault,
   ignoreDataStore: false,
   sendReactionAsReply: false,
@@ -113,13 +131,15 @@ export const defaultConfig: Config = {
   proxyUrl: undefined,
   authToken: undefined,
   authHeader: undefined,
-  provider: 'baileys',
-  server: UNOAPI_SERVER_NAME,
+  provider: undefined,
+  server: undefined,
   connectionType: 'qrcode',
   wavoipToken: '',
   useRedis: false,
   useS3: false,
-  qrTimeoutMs: 60000
+  qrTimeoutMs: 60000,
+  label: '',
+  overrideWebhooks: false
 }
 
 export interface getConfig {

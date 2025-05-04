@@ -17,14 +17,15 @@ import MAIN_LOGGER from 'baileys/lib/Utils/logger'
 import { Config, defaultConfig } from './config'
 import { Store } from './store'
 import NodeCache from 'node-cache'
-import { isIndividualJid, isValidPhoneNumber } from './transformer'
+import { isIndividualJid, isValidPhoneNumber, jidToPhoneNumber } from './transformer'
 import logger from './logger'
 import { Level } from 'pino'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { useVoiceCallsBaileys } from 'voice-calls-baileys/lib/services/transport.model'
-import { DEFAULT_BROWSER, WHATSAPP_VERSION, LOG_LEVEL, CONNECTING_TIMEOUT_MS, MAX_CONNECT_TIME, MAX_CONNECT_RETRY } from '../defaults'
+import { DEFAULT_BROWSER, WHATSAPP_VERSION, LOG_LEVEL, CONNECTING_TIMEOUT_MS, MAX_CONNECT_TIME, MAX_CONNECT_RETRY, CLEAN_CONFIG_ON_DISCONNECT } from '../defaults'
 import { t } from '../i18n'
+import { SendError } from './send_error'
 
 const EVENTS = [
   'connection.update',
@@ -60,16 +61,6 @@ export type OnNotification = (text: string, important: boolean) => Promise<void>
 export type OnDisconnected = (phone: string, payload: any) => Promise<void>
 export type OnNewLogin = (phone: string) => Promise<void>
 export type OnReconnect = (time: number) => Promise<void>
-
-export class SendError extends Error {
-  readonly code: number
-  readonly title: string
-  constructor(code: number, title: string) {
-    super(`${code}: ${title}`)
-    this.code = code
-    this.title = title
-  }
-}
 
 export interface sendMessage {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,6 +125,24 @@ export const connect = async ({
   let sock: WASocket | undefined = undefined
   const msgRetryCounterCache = new NodeCache()
   const { dataStore, state, saveCreds, sessionStore } = store
+  const firstSaveCreds = async () => {
+    if (state?.creds?.me?.id) {
+      const phoneCreds = jidToPhoneNumber(state?.creds?.me?.id, '')
+      logger.info(`First save creds with number is ${phoneCreds} and configured number ${phone}`)
+      if (phoneCreds != phone) {
+        await logout()
+        const message =  t('session_conflict', phoneCreds, phone)
+        logger.error(message)
+        await onNotification(message, true)
+        currentSaveCreds = async () => logger.error(message)
+      } else {
+        logger.info(`Correct save creds with number is ${phoneCreds} and configured number ${phone}`)
+        currentSaveCreds = saveCreds
+      }
+    }
+  }
+  let currentSaveCreds = firstSaveCreds
+  const verifyAndSaveCreds = async () => currentSaveCreds()
   let connectingTimeout
 
   const status: Status = {
@@ -141,7 +150,7 @@ export const connect = async ({
   }
 
   const onConnectionUpdate = async (event: Partial<ConnectionState>) => {
-    logger.debug('onConnectionUpdate ==> %s %s', phone, JSON.stringify(event))
+    logger.debug('onConnectionUpdate connectionType %s ==> %s %s', config.connectionType, phone, JSON.stringify(event))
     if (event.qr && config.connectionType == 'qrcode') {
       if (status.attempt > attempts) {
         const message =  t('attempts_exceeded', attempts)
@@ -353,7 +362,7 @@ export const connect = async ({
       // ignore de unique error if already diconected session
     } finally {
       logger.info(`${phone} destroyed`)
-      await dataStore.cleanSession()
+      await dataStore.cleanSession(CLEAN_CONFIG_ON_DISCONNECT)
     }
     await close()
     await sessionStore.setStatus(phone, 'disconnected')
@@ -503,12 +512,28 @@ export const connect = async ({
     }
 
     try {
-      sock = makeWASocket(socketConfig)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const proxy = makeWASocket(socketConfig)
+      const handler = {
+        apply: (target, _thisArg, argumentsList) => {
+          try {
+            return target(...argumentsList)
+          } catch (error) {
+            console.error(error, error.isBoom, !error.isServer)
+            if (error && error.isBoom && !error.isServer) {
+              onClose({ lastDisconnect: { error } })
+              return
+            } else {
+              throw error
+            }
+          }
+        }
+      }
+      sock = new Proxy(proxy, handler)
     } catch (error: any) {
       console.log(error, error.isBoom, !error.isServer)
       if (error && error.isBoom && !error.isServer) {
         await onClose({ lastDisconnect: { error } })
+        return false
       } else {
         logger.error('Baileys Socket error: %s %s', error, error.stack)
         const message = t('error', error.message)
@@ -518,7 +543,7 @@ export const connect = async ({
     }
     if (sock) {
       dataStore.bind(sock.ev)
-      event('creds.update', saveCreds)
+      event('creds.update', verifyAndSaveCreds)
       logger.info('Connection type %s already creds %s', config.connectionType, sock?.authState?.creds?.registered)
       if (config.connectionType == 'pairing_code' && !sock?.authState?.creds?.registered) {
         logger.info(`Requesting pairing code ${phone}`)
@@ -540,10 +565,15 @@ export const connect = async ({
       if (config.wavoipToken) {
         useVoiceCallsBaileys(config.wavoipToken, sock as any, 'close', true)
       }
+      return true
     }
+    return false
   }
 
-  await connect()
+  if (!await connect()) {
+    await sessionStore.setStatus(phone, 'offline')
+    return
+  }
 
   return { event, status, send, read, rejectCall, fetchImageUrl, fetchGroupMetadata, exists, close, logout }
 }

@@ -4,7 +4,6 @@ import { Listener } from './listener'
 import { Store } from './store'
 import {
   connect,
-  SendError,
   sendMessage,
   readMessages,
   rejectCall,
@@ -20,7 +19,7 @@ import {
 } from './socket'
 import { Client, getClient, clients, Contact } from './client'
 import { Config, configs, defaultConfig, getConfig, getMessageMetadataDefault } from './config'
-import { toBaileysMessageContent, phoneNumberToJid, jidToPhoneNumber, getMessageType, TYPE_MESSAGES_TO_READ } from './transformer'
+import { toBaileysMessageContent, phoneNumberToJid, jidToPhoneNumber, getMessageType, TYPE_MESSAGES_TO_READ, TYPE_MESSAGES_MEDIA } from './transformer'
 import { v1 as uuid } from 'uuid'
 import { Response } from './response'
 import QRCode from 'qrcode'
@@ -28,6 +27,9 @@ import { Template } from './template'
 import logger from './logger'
 import { FETCH_TIMEOUT_MS, VALIDATE_MEDIA_LINK_BEFORE_SEND } from '../defaults'
 import { t } from '../i18n'
+import { ClientForward } from './client_forward'
+import { SendError } from './send_error'
+
 const attempts = 3
 
 interface Delay {
@@ -49,14 +51,21 @@ export const getClientBaileys: getClient = async ({
 }): Promise<Client> => {
   if (!clients.has(phone)) {
     logger.info('Creating client baileys %s', phone)
-    const client = new ClientBaileys(phone, listener, getConfig, onNewLogin)
     const config = await getConfig(phone)
-    if (config.autoConnect) {
-      logger.info('Connecting client baileys %s', phone)
-      await client.connect(1)
-      logger.info('Created and connected client baileys %s', phone)
+    let client
+    if (config.connectionType == 'forward') {
+      logger.info('Connecting client forward %s', phone)
+      client = new ClientForward(phone, getConfig, listener)
     } else {
-      logger.info('Config client baileys to not auto connect %s', phone)
+      logger.info('Connecting client baileys %s', phone)
+      client = new ClientBaileys(phone, listener, getConfig, onNewLogin)
+    }
+    if (config.autoConnect) {
+      logger.info('Connecting client %s', phone)
+      await client.connect(1)
+      logger.info('Created and connected client %s', phone)
+    } else {
+      logger.info('Config client to not auto connect %s', phone)
     }
     clients.set(phone, client)
   } else {
@@ -65,12 +74,7 @@ export const getClientBaileys: getClient = async ({
   return clients.get(phone) as Client
 }
 
-const sendError = new SendError(3, t('disconnected_session'))
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const sendMessageDefault: sendMessage = async (_phone: string, _message: AnyMessageContent, _options: unknown) => {
-  throw sendError
-}
+const sendError = new SendError(15, t('reloaded_session'))
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const readMessagesDefault: readMessages = async (_keys) => {
@@ -101,10 +105,25 @@ const logoutDefault: logout = async () => {}
 const closeDefault = async () => logger.info(`Close connection`)
 
 export class ClientBaileys implements Client {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  readonly sendMessageDefault: sendMessage = async (_phone: string, _message: AnyMessageContent, _options: unknown) => {
+    const sessionStore = this?.phone && await (await this?.config?.getStore(this.phone, this.config)).sessionStore
+    if (sessionStore) {
+      if (!await sessionStore.isStatusConnecting(this.phone)) {
+        clients.delete(this.phone)
+      }
+      if (await sessionStore.isStatusOnline(this.phone)) {
+        await sessionStore.setStatus(this.phone, 'offline')
+        clients.delete(this.phone)
+      }
+    }
+    throw sendError
+  }
+
   private phone: string
   private config: Config = defaultConfig
   private close: close = closeDefault
-  private sendMessage = sendMessageDefault
+  private sendMessage = this.sendMessageDefault
   private event
   private fetchImageUrl = fetchImageUrlDefault
   private exists = existsDefault
@@ -122,9 +141,10 @@ export class ClientBaileys implements Client {
   private onWebhookError = async (error: any) => {
     const { sessionStore } = this.store!
     if (!this.config.throwWebhookError && error.name === 'FetchError' && (await sessionStore.isStatusOnline(this.phone))) {
-      return this.send(
+      return this.sendMessage(
         phoneNumberToJid(this.phone),
-        { text: `Error on send message to webhook: ${error.message}`}
+        { text: `Error on send message to webhook: ${error.message}`},
+        {}
       )
     }
     if (this.config.throwWebhookError) {
@@ -250,7 +270,6 @@ export class ClientBaileys implements Client {
 
     const result = await connect({
       phone: this.phone,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       store: this.store!,
       attempts,
       time,
@@ -262,6 +281,7 @@ export class ClientBaileys implements Client {
       onReconnect: this.onReconnect,
     })
     if (!result) {
+      logger.error('Socket connect return empty %s', this.phone)
       return
     }
     const { send, read, event, rejectCall, fetchImageUrl, fetchGroupMetadata, exists, close, logout } = result
@@ -289,7 +309,7 @@ export class ClientBaileys implements Client {
     await this.close()
     clients.delete(this?.phone)
     configs.delete(this?.phone)
-    this.sendMessage = sendMessageDefault
+    this.sendMessage = this.sendMessageDefault
     this.readMessages = readMessagesDefault
     this.rejectCall = rejectCallDefault
     this.fetchImageUrl = fetchImageUrlDefault
@@ -302,21 +322,17 @@ export class ClientBaileys implements Client {
   }
 
   async subscribe() {
-    this.event('messages.upsert', async (payload: { messages: []; type }) => {
+    this.event('messages.upsert', async (payload: { messages: any[]; type }) => {
       logger.debug('messages.upsert %s', this.phone, JSON.stringify(payload))
       await this.listener.process(this.phone, payload.messages, payload.type)
-      console.log('>>>>>>>>>> readOnReceipt 1')
-      if (this.config.readOnReceipt) {
-        console.log('>>>>>>>>>> readOnReceipt 2')
+      if (this.config.readOnReceipt && payload.messages[0] && !payload.messages[0]?.fromMe) {
         await Promise.all(
           payload.messages
             .filter((message: any) => {
-              console.log('>>>>>>>>>> readOnReceipt 3')
               const messageType = getMessageType(message)
               return !message?.key?.fromMe && messageType && TYPE_MESSAGES_TO_READ.includes(messageType)
             })
             .map(async (message: any) => {
-              console.log('>>>>>>>>>> readOnReceipt 2')
               return this.readMessages([message.key!])
             })
         )
@@ -437,13 +453,13 @@ export class ClientBaileys implements Client {
           throw new Error(`Unknow message status ${status}`)
         }
       } else if (type) {
-        if (['text', 'image', 'audio', 'document', 'video', 'template', 'interactive', 'contacts'].includes(type)) {
+        if (['text', 'image', 'audio', 'sticker', 'document', 'video', 'template', 'interactive', 'contacts'].includes(type)) {
           let content
           if ('template' === type) {
             const template = new Template(this.getConfig)
             content = await template.bind(this.phone, payload.template.name, payload.template.components)
           } else {
-            if (VALIDATE_MEDIA_LINK_BEFORE_SEND && ['image', 'audio', 'document', 'video'].includes(type)) {
+            if (VALIDATE_MEDIA_LINK_BEFORE_SEND && TYPE_MESSAGES_MEDIA.includes(type)) {
               const link = payload[type] && payload[type].link
               if (link) {
                 const response: FetchResponse = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'HEAD'})

@@ -1,7 +1,7 @@
 import { proto, WAMessage, downloadMediaMessage, Contact } from 'baileys'
-import { getBinMessage, getMessageType, jidToPhoneNumberIfUser, toBuffer } from './transformer'
+import { getBinMessage, jidToPhoneNumberIfUser, toBuffer } from './transformer'
 import { writeFile } from 'fs/promises'
-import { existsSync, mkdirSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, rmSync, createReadStream } from 'fs'
 import { MediaStore, getMediaStore, mediaStores } from './media_store'
 import mime from 'mime-types'
 import { Response } from 'express'
@@ -9,7 +9,7 @@ import { getDataStore } from './data_store'
 import { Config } from './config'
 import logger from './logger'
 import { DATA_URL_TTL, FETCH_TIMEOUT_MS } from '../defaults'
-import fetch, { Response as FetchResponse } from 'node-fetch'
+import fetch, { Response as FetchResponse, RequestInit } from 'node-fetch'
 
 export const MEDIA_DIR = '/medias'
 
@@ -32,14 +32,63 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
   const mediaStore: MediaStore = {} as MediaStore
   mediaStore.type = 'file'
 
-  mediaStore.getFileName = (phone: string, waMessage: proto.IWebMessageInfo) => {
-    const { key } = waMessage
-    const binMessage = getBinMessage(waMessage)
-    if (binMessage?.message?.mimetype) {
-      const extension = mime.extension(binMessage?.message?.mimetype)
-      return `${phone}/${key.id}.${extension}`
+  mediaStore.getFilePath = (phone: string, mediaId: string, mimeType: string) => {
+    const extension = mime.extension(mimeType)
+    return `${phone}/${mediaId}.${extension}`
+  }
+
+  mediaStore.saveMediaForwarder = async (message: any) => {
+    const filePath = mediaStore.getFilePath(phone, message.id, message[message.type].mime_type)
+    const url = `${config.webhookForward.url}/${config.webhookForward.version}/${ message[message.type].id}`
+    const headers = {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Authorization': `Bearer ${config.webhookForward.token}`
     }
-    throw 'Not possible get file name'
+    const options: RequestInit = { method: 'GET', headers }
+    if (config.webhookForward?.timeoutMs) {
+      options.signal = AbortSignal.timeout(config.webhookForward?.timeoutMs)
+    }
+    let response: FetchResponse
+    try {
+      logger.debug('Requesting to url to save media forwarded with url %s...', url)
+      response = await fetch(url, options)
+      logger.debug('Requested to url to save media forwarded with url %s!', url)
+    } catch (error) {
+      logger.error(`Error on saveMediaForwarder to url ${url}`)
+      logger.error(error)
+      throw error
+    }
+    if (!response?.ok) {
+      logger.error(`Error on saveMediaForwarder to url ${url}`)
+      throw await response.text()
+    }
+    const json = await response.json()
+    logger.debug('Downloading to save media forwarded with url %s...', json['url'])
+    response = await fetch(json['url'], options)
+    logger.debug('Downloaded to save media forwarded with url %s!', json['url'])
+    if (!response?.ok) {
+      logger.error(`Error on saveMediaForwarder to get responnsed url ${json['url']}`)
+      throw await response.text()
+    }
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = toBuffer(arrayBuffer)
+    logger.debug('Saving buffer %s...', filePath)
+    await mediaStore.saveMediaBuffer(filePath, buffer)
+    logger.debug('Saved buffer %s!', filePath)
+    const mediaId = `${phone}/${message.id}`
+    // "type"=>"audio", "audio"=>{"mime_type"=>"audio/ogg; codecs=opus", "sha256"=>"HgQo1XoLPSCGlIQYu7eukl4ty1yIu2kAWvoKgqLCnu4=", "id"=>"642476532090165", "voice"=>true}}]
+    const payload = {
+      messaging_product: 'whatsapp',
+      mime_type: message[message.type].mime_type,
+      sha256: message[message.type].sha256,
+      // file_size: binMessage?.message?.fileLength,
+      id: mediaId,
+      filename: message[message.type].filename || filePath,
+    }
+    const dataStore = await getDataStore(phone, config)
+    await dataStore.setMediaPayload(message.id, payload)
+    message[message.type].id = mediaId
+    return message
   }
 
   mediaStore.getFileUrl = async (fileName: string, _expiresIn = DATA_URL_TTL) => {
@@ -61,11 +110,22 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
     } else {
       buffer = await downloadMediaMessage(waMessage, 'buffer', {})
     }
-    const fileName = mediaStore.getFileName(phone, waMessage)
-    await mediaStore.saveMediaBuffer(fileName, buffer)
-    if (binMessage?.messageType && waMessage.message) {
-      waMessage.message[binMessage?.messageType]['url'] = await mediaStore.getFileUrl(fileName, DATA_URL_TTL)
+    const filePath = mediaStore.getFilePath(phone, waMessage.key.id!, binMessage?.message?.mimetype)
+    logger.debug('Saving buffer %s...', filePath)
+    await mediaStore.saveMediaBuffer(filePath, buffer)
+    logger.debug('Saved buffer %s!', filePath)
+    const mediaId = waMessage.key.id
+    const mimeType = mime.lookup(filePath)
+    const payload = {
+      messaging_product: 'whatsapp',
+      mime_type: mimeType,
+      sha256: binMessage?.message?.fileSha256,
+      file_size: binMessage?.message?.fileLength,
+      id: `${phone}/${mediaId}`,
+      filename: binMessage?.message?.fileName || filePath,
     }
+    const dataStore = await getDataStore(phone, config)
+    await dataStore.setMediaPayload(mediaId!, payload)
     return waMessage
   }
 
@@ -86,61 +146,42 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
   }
 
   mediaStore.downloadMedia = async (res: Response, file: string) => {
-    const store = await getDataStore(phone, config)
-    const mediaId = file.split('.')[0]
-    let fileName = ''
+    const stream = await mediaStore.downloadMediaStream(file)
+    if (!stream) {
+      logger.error('Not retrieve the media: %', file)
+      res.sendStatus(404)
+      return
+    }
+    const withoutExtension = file.replace(/\.[^/.]+$/, '')
+    const mediaId = withoutExtension.split('/')[1]
     if (mediaId) {
-      const key: proto.IMessageKey | undefined = await store.loadKey(mediaId)
-      logger.debug('key %s for %s', JSON.stringify(key), mediaId)
-      if (key) {
-        const { remoteJid, id } = key
-        if (remoteJid && id) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const message: any = await store.loadMessage(remoteJid, id)
-          logger.debug('message %s for %s', JSON.stringify(message), JSON.stringify(key))
-          if (message) {
-            const messageType = getMessageType(message)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const binMessage: any = message.message && messageType && message.message[messageType]
-            fileName = binMessage.fileName
-          }
-        }
+      const dataStore = await getDataStore(phone, config)
+      const mediaPayload = await dataStore.loadMediaPayload(mediaId!)
+      if (mediaPayload?.filename) {
+        res.setHeader('Content-disposition', `attachment; filename="${encodeURIComponent(mediaPayload.filename)}"`)
+      }
+      if (mediaPayload?.content_type) {
+        res.contentType(mediaPayload.content_type)
       }
     }
-    const filePath = await mediaStore.getFileUrl(`${phone}/${file}`, DATA_URL_TTL)
-    res.contentType(mime.lookup(filePath) || '')
-    res.download(filePath, fileName)
+    stream.pipe(res)
+  }
+
+  mediaStore.downloadMediaStream = async (file: string) => {
+    const filePath = await mediaStore.getFileUrl(file, DATA_URL_TTL)
+    return createReadStream(filePath)
   }
 
   mediaStore.getMedia = async (baseUrl: string, mediaId: string) => {
-    const store = await getDataStore(phone, config)
-    if (mediaId) {
-      const key: proto.IMessageKey | undefined = await store.loadKey(mediaId)
-      logger.debug('key %s for %s', JSON.stringify(key), mediaId)
-      if (key) {
-        const { remoteJid, id } = key
-        if (remoteJid && id) {
-          const message: any = await store.loadMessage(remoteJid, id)
-          logger.debug('message %s for %s', JSON.stringify(message), id)
-          if (message) {
-            const binMessage = getBinMessage(message)
-            message.key.id = mediaId
-            const filePath = await mediaStore.getFileName(phone, message)
-            const mimeType = mime.lookup(filePath)
-            const url = await mediaStore.getDownloadUrl(baseUrl, filePath)
-            const payload = {
-              messaging_product: 'whatsapp',
-              url,
-              mime_type: mimeType,
-              sha256: binMessage?.message?.fileSha256,
-              file_size: binMessage?.message?.fileLength,
-              id: `${phone}/${mediaId}`,
-            }
-            return payload
-          }
-        }
-      }
+    const dataStore = await getDataStore(phone, config)
+    const mediaPayload = await dataStore.loadMediaPayload(mediaId!)
+    const filePath = mediaStore.getFilePath(phone, mediaId!, mediaPayload.mime_type!)
+    const url = await mediaStore.getDownloadUrl(baseUrl, filePath)
+    const payload = {
+      ...mediaPayload,
+      url,
     }
+    return payload
   }
 
   mediaStore.getProfilePictureUrl = async (baseUrl: string, jid: string) => {
