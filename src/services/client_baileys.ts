@@ -557,9 +557,30 @@ export class ClientBaileys implements Client {
       if (ee.message == 'Media upload failed on all hosts') {
         const link = payload[type] && payload[type].link
         if (link) {
-          const response: FetchResponse = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'HEAD'})
-          if (!response.ok) {
-            e = new SendError(11, t('invalid_link', response.status, link))
+          const retries = 3
+          const delayMs = 1000
+          for (let i = 0; i < retries; i++) {
+            try {
+              logger.debug(`Validating media link: ${link}, Attempt ${i + 1}/${retries}, Timestamp: ${new Date().toISOString()}`)
+              const response: FetchResponse = await fetch(link, {
+                signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+                method: 'HEAD',
+              })
+              logger.debug(`Response for ${link}: HTTP ${response.status}`)
+              if (response.ok) break
+              if (response.status === 403 && i < retries - 1) {
+                logger.debug(`Retry ${i + 1}/${retries} for link ${link} after ${delayMs}ms`)
+                await new Promise(resolve => setTimeout(resolve, delayMs))
+                continue
+              }
+              e = new SendError(11, t('invalid_link', response.status, link))
+              break
+            } catch (err) {
+              logger.error(`Error on retry ${i + 1} for link ${link}: ${err.message}`)
+              if (i === retries - 1) {
+                e = new SendError(11, t('invalid_link', 0, link))
+              }
+            }
           }
         } else {
           e = new SendError(11, ee.message)
