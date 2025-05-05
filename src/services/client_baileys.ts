@@ -553,37 +553,45 @@ export class ClientBaileys implements Client {
         }
       }
     } catch (ee) {
-      let e = ee
-      if (ee.message == 'Media upload failed on all hosts') {
-        const link = payload[type] && payload[type].link
+      let e = ee;
+      if (ee.message === 'Media upload failed on all hosts') {
+        const link = payload[type] && payload[type].link;
         if (link) {
-          const retries = 3
-          const delayMs = 1000
+          const retries = 3;
+          const delayMs = 1000;
+          let lastError: any = null;
+
           for (let i = 0; i < retries; i++) {
             try {
-              logger.debug(`Validating media link: ${link}, Attempt ${i + 1}/${retries}, Timestamp: ${new Date().toISOString()}`)
+              logger.debug(`Validating media link: ${link}, Attempt ${i + 1}/${retries}, Timestamp: ${new Date().toISOString()}`);
               const response: FetchResponse = await fetch(link, {
                 signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
                 method: 'HEAD',
-              })
-              logger.debug(`Response for ${link}: HTTP ${response.status}`)
-              if (response.ok) break
-              if (response.status === 403 && i < retries - 1) {
-                logger.debug(`Retry ${i + 1}/${retries} for link ${link} after ${delayMs}ms`)
-                await new Promise(resolve => setTimeout(resolve, delayMs))
-                continue
+              });
+              logger.debug(`Response for ${link}: HTTP ${response.status}`);
+              if (response.ok) {
+                return await this.send(payload, options); 
               }
-              e = new SendError(11, t('invalid_link', response.status, link))
-              break
+              lastError = new SendError(11, t('invalid_link', response.status, link));
+              if (response.status === 403 && i < retries - 1) {
+                logger.debug(`Retry ${i + 1}/${retries} for link ${link} after ${delayMs}ms`);
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+                continue;
+              }
+              break;
             } catch (err) {
-              logger.error(`Error on retry ${i + 1} for link ${link}: ${err.message}`)
-              if (i === retries - 1) {
-                e = new SendError(11, t('invalid_link', 0, link))
+              logger.error(`Error on retry ${i + 1} for link ${link}: ${err.message}`);
+              lastError = err;
+              if (i < retries - 1) {
+                logger.debug(`Retry ${i + 1}/${retries} for link ${link} after ${delayMs}ms`);
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+                continue;
               }
             }
           }
+          e = lastError || new SendError(11, t('invalid_link', 0, link));
         } else {
-          e = new SendError(11, ee.message)
+          e = new SendError(11, ee.message);
         }
       }
       if (e instanceof SendError) {
