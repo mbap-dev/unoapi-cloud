@@ -39,11 +39,11 @@ interface Delay {
 const delays: Map<string, Map<string, Delay>> = new Map()
 
 export const getClientBaileys: getClient = async ({
-  phone,
-  listener,
-  getConfig,
-  onNewLogin,
-}: {
+                                                    phone,
+                                                    listener,
+                                                    getConfig,
+                                                    onNewLogin,
+                                                  }: {
   phone: string
   listener: Listener
   getConfig: getConfig
@@ -460,11 +460,35 @@ export class ClientBaileys implements Client {
             content = await template.bind(this.phone, payload.template.name, payload.template.components)
           } else {
             if (VALIDATE_MEDIA_LINK_BEFORE_SEND && TYPE_MESSAGES_MEDIA.includes(type)) {
-              const link = payload[type] && payload[type].link
+              const link = payload[type] && payload[type].link;
               if (link) {
-                const response: FetchResponse = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'HEAD'})
-                if (!response.ok) {
-                  throw new SendError(11, t('invalid_link', response.status, link))
+                const retries = 3;
+                const delayMs = 1000;
+                let lastError: SendError | null = null;
+
+                for (let i = 0; i < retries; i++) {
+                  try {
+                    const response: FetchResponse = await fetch(link, {
+                      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+                      method: 'HEAD',
+                    });
+                    if (response.ok) {
+                      break;
+                    }
+                    lastError = new SendError(11, t('invalid_link', response.status, link));
+                    if (response.status === 403 && i < retries - 1) {
+                      await new Promise((resolve) => setTimeout(resolve, delayMs));
+                      continue;
+                    }
+                    throw lastError; 
+                  } catch (err) {
+                    lastError = err;
+                    if (i < retries - 1) {
+                      await new Promise((resolve) => setTimeout(resolve, delayMs));
+                      continue;
+                    }
+                    throw lastError; 
+                  }
                 }
               }
             }
@@ -553,45 +577,16 @@ export class ClientBaileys implements Client {
         }
       }
     } catch (ee) {
-      let e = ee;
-      if (ee.message === 'Media upload failed on all hosts') {
-        const link = payload[type] && payload[type].link;
+      let e = ee
+      if (ee.message == 'Media upload failed on all hosts') {
+        const link = payload[type] && payload[type].link
         if (link) {
-          const retries = 3;
-          const delayMs = 1000;
-          let lastError: any = null;
-
-          for (let i = 0; i < retries; i++) {
-            try {
-              logger.debug(`Validating media link: ${link}, Attempt ${i + 1}/${retries}, Timestamp: ${new Date().toISOString()}`);
-              const response: FetchResponse = await fetch(link, {
-                signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-                method: 'HEAD',
-              });
-              logger.debug(`Response for ${link}: HTTP ${response.status}`);
-              if (response.ok) {
-                return await this.send(payload, options); 
-              }
-              lastError = new SendError(11, t('invalid_link', response.status, link));
-              if (response.status === 403 && i < retries - 1) {
-                logger.debug(`Retry ${i + 1}/${retries} for link ${link} after ${delayMs}ms`);
-                await new Promise((resolve) => setTimeout(resolve, delayMs));
-                continue;
-              }
-              break;
-            } catch (err) {
-              logger.error(`Error on retry ${i + 1} for link ${link}: ${err.message}`);
-              lastError = err;
-              if (i < retries - 1) {
-                logger.debug(`Retry ${i + 1}/${retries} for link ${link} after ${delayMs}ms`);
-                await new Promise((resolve) => setTimeout(resolve, delayMs));
-                continue;
-              }
-            }
+          const response: FetchResponse = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'HEAD'})
+          if (!response.ok) {
+            e = new SendError(11, t('invalid_link', response.status, link))
           }
-          e = lastError || new SendError(11, t('invalid_link', 0, link));
         } else {
-          e = new SendError(11, ee.message);
+          e = new SendError(11, ee.message)
         }
       }
       if (e instanceof SendError) {
