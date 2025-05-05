@@ -460,35 +460,12 @@ export class ClientBaileys implements Client {
             content = await template.bind(this.phone, payload.template.name, payload.template.components)
           } else {
             if (VALIDATE_MEDIA_LINK_BEFORE_SEND && TYPE_MESSAGES_MEDIA.includes(type)) {
-              const link = payload[type] && payload[type].link;
+              const link = payload[type] && payload[type].link
               if (link) {
-                const retries = 3;
-                const delayMs = 1000;
-                let lastError: SendError | null = null;
-
-                for (let i = 0; i < retries; i++) {
-                  try {
-                    const response: FetchResponse = await fetch(link, {
-                      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-                      method: 'HEAD',
-                    });
-                    if (response.ok) {
-                      break;
-                    }
-                    lastError = new SendError(11, t('invalid_link', response.status, link));
-                    if (response.status === 403 && i < retries - 1) {
-                      await new Promise((resolve) => setTimeout(resolve, delayMs));
-                      continue;
-                    }
-                    throw lastError; 
-                  } catch (err) {
-                    lastError = err;
-                    if (i < retries - 1) {
-                      await new Promise((resolve) => setTimeout(resolve, delayMs));
-                      continue;
-                    }
-                    throw lastError; 
-                  }
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+                const response: FetchResponse = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'HEAD'})
+                if (!response.ok) {
+                  throw new SendError(11, t('invalid_link', response.status, link))
                 }
               }
             }
