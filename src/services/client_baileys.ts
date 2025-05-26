@@ -464,7 +464,7 @@ export class ClientBaileys implements Client {
               if (link) {
                 let response
                 let lastError
-                for (let attempt = 1; attempt <= 3; attempt++) {
+                for (let attempt = 1; attempt <= 5; attempt++) {
                   try {
                     response = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'HEAD'})
                     if (response.ok) break // saiu se deu certo
@@ -472,7 +472,7 @@ export class ClientBaileys implements Client {
                   } catch (err) {
                     lastError = err
                   }
-                  if (attempt < 3) {
+                  if (attempt < 5) {
                     await new Promise(res => setTimeout(res, 1000 * 2 ** (attempt - 1)))
                   }
                 }
