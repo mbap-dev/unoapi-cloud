@@ -423,6 +423,8 @@ export const connect = async ({
         opts['quoted'] = options.quoted
       }
       logger.debug('Send baileys from %s to %s -> %s', phone, id, JSON.stringify(message))
+      const delayMs = Math.floor(Math.random() * 1000) + 1000;
+      await delay(delayMs);
       return sock?.sendMessage(id, message, opts)
     }
     if (!isValidPhoneNumber(to)) {
