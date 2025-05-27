@@ -30,6 +30,104 @@ import { t } from '../i18n'
 import { ClientForward } from './client_forward'
 import { SendError } from './send_error'
 
+interface MediaLinkValidationOptions {
+  maxAttempts?: number;
+  initialDelay?: number;
+  maxDelay?: number;
+  timeout?: number;
+  specificErrorCodes?: number[];
+}
+
+class MediaLinkValidator {
+  private static readonly DEFAULT_OPTIONS: MediaLinkValidationOptions = {
+    maxAttempts: 30, // Mais tentativas para links pré-assinados
+    initialDelay: 2000, // 2 segundos inicial
+    maxDelay: 30000, // Máximo 30 segundos entre tentativas
+    timeout: 600000, // 10 minutos total
+    specificErrorCodes: [403, 404] // Códigos que indicam "ainda não disponível"
+  };
+
+  static async validateMediaLink(
+    url: string,
+    options: MediaLinkValidationOptions = {}
+  ): Promise<boolean> {
+    const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    const startTime = Date.now();
+    let attempt = 0;
+    let delay = opts.initialDelay!;
+
+    while (attempt < opts.maxAttempts!) {
+      // Verifica timeout global
+      if (Date.now() - startTime > opts.timeout!) {
+        throw new SendError(11, t('link_validation_timeout', url));
+      }
+
+      attempt++;
+
+      try {
+        logger.debug(`Validating media link attempt ${attempt}/${opts.maxAttempts}: ${url}`);
+
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(15000), // Timeout individual menor
+          method: 'HEAD'
+        });
+
+        if (response.ok) {
+          logger.debug(`Media link validated successfully on attempt ${attempt}: ${url}`);
+          return true;
+        }
+
+        // Se não é um erro "temporário", falha imediatamente
+        if (!opts.specificErrorCodes!.includes(response.status)) {
+          throw new SendError(11, t('invalid_link', response.status, url));
+        }
+
+        logger.debug(`Media link not ready (${response.status}), attempt ${attempt}/${opts.maxAttempts}: ${url}`);
+
+      } catch (error) {
+        // Se não é timeout/network error, falha imediatamente
+        if (!(error instanceof TypeError) && !error.message.includes('timeout')) {
+          throw error;
+        }
+
+        logger.debug(`Network error on attempt ${attempt}, retrying: ${error.message}`);
+      }
+
+      // Se não é a última tentativa, aguarda antes de tentar novamente
+      if (attempt < opts.maxAttempts!) {
+        await this.smartDelay(delay, attempt, opts);
+
+        // Aumenta o delay de forma mais suave para links pré-assinados
+        delay = Math.min(delay * 1.5, opts.maxDelay!);
+      }
+    }
+
+    throw new SendError(11, t('link_validation_failed_after_retries', opts.maxAttempts, url));
+  }
+
+  private static async smartDelay(
+    baseDelay: number,
+    attempt: number,
+    options: MediaLinkValidationOptions
+  ): Promise<void> {
+    // Para links pré-assinados, usa um delay mais consistente nas primeiras tentativas
+    let actualDelay = baseDelay;
+
+    if (attempt <= 10) {
+      // Primeiras 10 tentativas: delay mais curto e consistente
+      actualDelay = Math.min(baseDelay, 5000);
+    } else if (attempt <= 20) {
+      // Tentativas 11-20: delay médio
+      actualDelay = Math.min(baseDelay, 15000);
+    }
+    // Após 20 tentativas: usa o delay calculado normalmente
+
+    logger.debug(`Waiting ${actualDelay}ms before next attempt...`);
+    await new Promise(resolve => setTimeout(resolve, actualDelay));
+  }
+}
+
+
 const attempts = 3
 
 interface Delay {
@@ -459,25 +557,24 @@ export class ClientBaileys implements Client {
             const template = new Template(this.getConfig)
             content = await template.bind(this.phone, payload.template.name, payload.template.components)
           } else {
+            // Na função send(), substitua a validação existente:
             if (VALIDATE_MEDIA_LINK_BEFORE_SEND && TYPE_MESSAGES_MEDIA.includes(type)) {
               const link = payload[type] && payload[type].link
               if (link) {
-                let response
-                let lastError
-                for (let attempt = 1; attempt <= 5; attempt++) {
-                  try {
-                    response = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'HEAD'})
-                    if (response.ok) break // saiu se deu certo
-                    lastError = new SendError(11, t('invalid_link', response.status, link))
-                  } catch (err) {
-                    lastError = err
+                try {
+                  await MediaLinkValidator.validateMediaLink(link, {
+                    // Configurações específicas para links pré-assinados
+                    maxAttempts: 25,
+                    initialDelay: 3000,
+                    maxDelay: 20000,
+                    timeout: 600000, // 10 minutos como você queria
+                    specificErrorCodes: [403] // Códigos que indicam "temporariamente indisponível"
+                  });
+                } catch (error) {
+                  if (error instanceof SendError) {
+                    throw error;
                   }
-                  if (attempt < 5) {
-                    await new Promise(res => setTimeout(res, 1000 * 2 ** (attempt - 1)))
-                  }
-                }
-                if (!response || !response.ok) {
-                  throw lastError || new SendError(11, t('invalid_link', 0, link))
+                  throw new SendError(11, t('media_validation_error', error.message));
                 }
               }
             }
