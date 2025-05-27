@@ -30,103 +30,108 @@ import { t } from '../i18n'
 import { ClientForward } from './client_forward'
 import { SendError } from './send_error'
 
-interface MediaLinkValidationOptions {
-  maxAttempts?: number;
-  initialDelay?: number;
-  maxDelay?: number;
-  timeout?: number;
-  specificErrorCodes?: number[];
-}
+// Adicione esta classe antes da classe ClientBaileys
+class PresignedLinkValidator {
+  private static isPresignedLink(url: string): boolean {
+    return url.includes('X-Amz-Algorithm') ||
+      url.includes('response-content-disposition') ||
+      url.includes('X-Amz-Signature');
+  }
 
-class MediaLinkValidator {
-  private static readonly DEFAULT_OPTIONS: MediaLinkValidationOptions = {
-    maxAttempts: 30, // Mais tentativas para links pré-assinados
-    initialDelay: 2000, // 2 segundos inicial
-    maxDelay: 30000, // Máximo 30 segundos entre tentativas
-    timeout: 600000, // 10 minutos total
-    specificErrorCodes: [403, 404] // Códigos que indicam "ainda não disponível"
-  };
+  static async validateLink(url: string): Promise<boolean> {
+    const isPresigned = this.isPresignedLink(url);
 
-  static async validateMediaLink(
-    url: string,
-    options: MediaLinkValidationOptions = {}
-  ): Promise<boolean> {
-    const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    if (!isPresigned) {
+      // Para links normais, validação simples
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(10000),
+          method: 'HEAD'
+        });
+        return response.ok;
+      } catch (error) {
+        logger.warn(`Normal link validation failed: ${error.message}`);
+        return false;
+      }
+    }
+
+    // Para links pré-assinados, validação com retry inteligente
+    logger.info(`Detected presigned link, starting validation with retry: ${url}`);
+
+    const maxAttempts = 40; // Mais tentativas
+    const baseDelay = 1500; // Delay inicial menor
+    const maxDelay = 15000; // Delay máximo
+    const totalTimeout = 8 * 60 * 1000; // 8 minutos
+
     const startTime = Date.now();
-    let attempt = 0;
-    let delay = opts.initialDelay!;
 
-    while (attempt < opts.maxAttempts!) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       // Verifica timeout global
-      if (Date.now() - startTime > opts.timeout!) {
+      if (Date.now() - startTime > totalTimeout) {
+        logger.warn(`Presigned link validation timeout after ${totalTimeout}ms: ${url}`);
         throw new SendError(11, t('link_validation_timeout', url));
       }
 
-      attempt++;
-
       try {
-        logger.debug(`Validating media link attempt ${attempt}/${opts.maxAttempts}: ${url}`);
+        logger.debug(`Validating presigned link attempt ${attempt}/${maxAttempts}: ${url}`);
 
         const response = await fetch(url, {
-          signal: AbortSignal.timeout(15000), // Timeout individual menor
+          signal: AbortSignal.timeout(8000), // Timeout individual
           method: 'HEAD'
         });
 
         if (response.ok) {
-          logger.debug(`Media link validated successfully on attempt ${attempt}: ${url}`);
+          logger.info(`Presigned link validated successfully on attempt ${attempt}: ${url}`);
           return true;
         }
 
-        // Se não é um erro "temporário", falha imediatamente
-        if (!opts.specificErrorCodes!.includes(response.status)) {
-          throw new SendError(11, t('invalid_link', response.status, url));
+        // Para links pré-assinados, 403/404 são temporários
+        if ([403, 404, 502, 503].includes(response.status)) {
+          logger.debug(`Presigned link not ready (${response.status}), attempt ${attempt}/${maxAttempts}`);
+
+          // Calcula delay inteligente
+          let delay = baseDelay;
+          if (attempt <= 15) {
+            delay = baseDelay; // Primeiras 15 tentativas: delay fixo
+          } else if (attempt <= 25) {
+            delay = baseDelay * 1.5; // Tentativas 16-25: delay médio
+          } else {
+            delay = Math.min(baseDelay * 2, maxDelay); // Últimas tentativas: delay maior
+          }
+
+          if (attempt < maxAttempts) {
+            logger.debug(`Waiting ${delay}ms before next attempt...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+          continue;
         }
 
-        logger.debug(`Media link not ready (${response.status}), attempt ${attempt}/${opts.maxAttempts}: ${url}`);
+        // Outros códigos de erro são definitivos
+        logger.error(`Presigned link validation failed with status ${response.status}: ${url}`);
+        throw new SendError(11, t('invalid_link', response.status, url));
 
       } catch (error) {
-        // Se não é timeout/network error, falha imediatamente
-        if (!(error instanceof TypeError) && !error.message.includes('timeout')) {
+        if (error instanceof SendError) {
           throw error;
         }
 
-        logger.debug(`Network error on attempt ${attempt}, retrying: ${error.message}`);
-      }
+        // Erros de rede/timeout podem ser temporários
+        if (error.name === 'AbortError' || error.message.includes('timeout') || error.name === 'FetchError') {
+          logger.debug(`Network error on attempt ${attempt}: ${error.message}`);
+          if (attempt < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, baseDelay));
+            continue;
+          }
+        }
 
-      // Se não é a última tentativa, aguarda antes de tentar novamente
-      if (attempt < opts.maxAttempts!) {
-        await this.smartDelay(delay, attempt, opts);
-
-        // Aumenta o delay de forma mais suave para links pré-assinados
-        delay = Math.min(delay * 1.5, opts.maxDelay!);
+        logger.error(`Unexpected error validating presigned link: ${error.message}`);
+        throw new SendError(11, t('link_validation_error', error.message));
       }
     }
 
-    throw new SendError(11, t('link_validation_failed_after_retries', opts.maxAttempts, url));
-  }
-
-  private static async smartDelay(
-    baseDelay: number,
-    attempt: number,
-    options: MediaLinkValidationOptions
-  ): Promise<void> {
-    // Para links pré-assinados, usa um delay mais consistente nas primeiras tentativas
-    let actualDelay = baseDelay;
-
-    if (attempt <= 10) {
-      // Primeiras 10 tentativas: delay mais curto e consistente
-      actualDelay = Math.min(baseDelay, 5000);
-    } else if (attempt <= 20) {
-      // Tentativas 11-20: delay médio
-      actualDelay = Math.min(baseDelay, 15000);
-    }
-    // Após 20 tentativas: usa o delay calculado normalmente
-
-    logger.debug(`Waiting ${actualDelay}ms before next attempt...`);
-    await new Promise(resolve => setTimeout(resolve, actualDelay));
+    throw new SendError(11, t('link_validation_failed_after_retries', maxAttempts, url));
   }
 }
-
 
 const attempts = 3
 
@@ -558,19 +563,19 @@ export class ClientBaileys implements Client {
             content = await template.bind(this.phone, payload.template.name, payload.template.components)
           } else {
             // Na função send(), substitua a validação existente:
+            // Na função send(), substitua toda a validação de mídia por:
             if (VALIDATE_MEDIA_LINK_BEFORE_SEND && TYPE_MESSAGES_MEDIA.includes(type)) {
-              const link = payload[type] && payload[type].link
+              const link = payload[type] && payload[type].link;
+
               if (link) {
+                logger.info(`Starting media link validation for ${type}: ${link}`);
+
                 try {
-                  await MediaLinkValidator.validateMediaLink(link, {
-                    // Configurações específicas para links pré-assinados
-                    maxAttempts: 25,
-                    initialDelay: 3000,
-                    maxDelay: 20000,
-                    timeout: 600000, // 10 minutos como você queria
-                    specificErrorCodes: [403] // Códigos que indicam "temporariamente indisponível"
-                  });
+                  await PresignedLinkValidator.validateLink(link);
+                  logger.info(`Media link validation completed successfully for ${type}`);
                 } catch (error) {
+                  logger.error(`Media link validation failed for ${type}: ${error.message}`);
+
                   if (error instanceof SendError) {
                     throw error;
                   }
