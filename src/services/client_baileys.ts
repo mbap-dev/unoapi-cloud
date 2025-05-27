@@ -42,7 +42,7 @@ class PresignedLinkValidator {
     const isPresigned = this.isPresignedLink(url);
 
     if (!isPresigned) {
-      // Para links normais, validação simples
+      // Para links normais, tenta HEAD primeiro, depois GET como fallback
       try {
         const response = await fetch(url, {
           signal: AbortSignal.timeout(10000),
@@ -50,23 +50,34 @@ class PresignedLinkValidator {
         });
         return response.ok;
       } catch (error) {
-        logger.warn(`Normal link validation failed: ${error.message}`);
-        return false;
+        logger.warn(`Normal link HEAD failed, trying GET: ${error.message}`);
+        try {
+          const response = await fetch(url, {
+            signal: AbortSignal.timeout(10000),
+            method: 'GET',
+            headers: {
+              'Range': 'bytes=0-0'
+            }
+          });
+          return response.ok;
+        } catch (getError) {
+          logger.warn(`Normal link validation failed: ${getError.message}`);
+          return false;
+        }
       }
     }
 
-    // Para links pré-assinados, validação com retry inteligente
-    logger.info(`Detected presigned link, starting validation with retry: ${url}`);
+    // Para links pré-assinados, usa GET com Range para evitar problemas com HEAD
+    logger.info(`Detected presigned link, starting validation with GET Range: ${url}`);
 
-    const maxAttempts = 40; // Mais tentativas
-    const baseDelay = 1500; // Delay inicial menor
-    const maxDelay = 15000; // Delay máximo
-    const totalTimeout = 8 * 60 * 1000; // 8 minutos
+    const maxAttempts = 40;
+    const baseDelay = 1500;
+    const maxDelay = 15000;
+    const totalTimeout = 8 * 60 * 1000;
 
     const startTime = Date.now();
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      // Verifica timeout global
       if (Date.now() - startTime > totalTimeout) {
         logger.warn(`Presigned link validation timeout after ${totalTimeout}ms: ${url}`);
         throw new SendError(11, t('link_validation_timeout', url));
@@ -75,28 +86,44 @@ class PresignedLinkValidator {
       try {
         logger.debug(`Validating presigned link attempt ${attempt}/${maxAttempts}: ${url}`);
 
+        // Usa GET com Range para baixar apenas 1 byte (evita problema HEAD)
         const response = await fetch(url, {
-          signal: AbortSignal.timeout(8000), // Timeout individual
-          method: 'HEAD'
+          signal: AbortSignal.timeout(8000),
+          method: 'GET',
+          headers: {
+            'Range': 'bytes=0-0',
+            'User-Agent': 'UnoAPI/1.0',
+            'Accept': '*/*',
+            'Cache-Control': 'no-cache'
+          }
         });
 
-        if (response.ok) {
-          logger.info(`Presigned link validated successfully on attempt ${attempt}: ${url}`);
+        // Status 206 (Partial Content) ou 200 (OK) indicam sucesso
+        if (response.ok || response.status === 206) {
+          logger.info(`Presigned link validated successfully on attempt ${attempt} (status: ${response.status}): ${url}`);
+
+          // Consume o response body para evitar memory leak
+          try {
+            await response.text();
+          } catch (e) {
+            // Ignora erro ao consumir body
+          }
+
           return true;
         }
 
-        // Para links pré-assinados, 403/404 são temporários
-        if ([403, 404, 502, 503].includes(response.status)) {
+        // Para links pré-assinados, 403/404/416 podem ser temporários
+        if ([403, 404, 416, 502, 503].includes(response.status)) {
           logger.debug(`Presigned link not ready (${response.status}), attempt ${attempt}/${maxAttempts}`);
 
           // Calcula delay inteligente
           let delay = baseDelay;
           if (attempt <= 15) {
-            delay = baseDelay; // Primeiras 15 tentativas: delay fixo
+            delay = baseDelay;
           } else if (attempt <= 25) {
-            delay = baseDelay * 1.5; // Tentativas 16-25: delay médio
+            delay = baseDelay * 1.5;
           } else {
-            delay = Math.min(baseDelay * 2, maxDelay); // Últimas tentativas: delay maior
+            delay = Math.min(baseDelay * 2, maxDelay);
           }
 
           if (attempt < maxAttempts) {
@@ -116,7 +143,11 @@ class PresignedLinkValidator {
         }
 
         // Erros de rede/timeout podem ser temporários
-        if (error.name === 'AbortError' || error.message.includes('timeout') || error.name === 'FetchError') {
+        if (error.name === 'AbortError' ||
+          error.message.includes('timeout') ||
+          error.name === 'FetchError' ||
+          error.message.includes('ECONNRESET')) {
+
           logger.debug(`Network error on attempt ${attempt}: ${error.message}`);
           if (attempt < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, baseDelay));
