@@ -338,11 +338,11 @@ export const isValidPhoneNumber = (value: string, nine = false): boolean => {
   return !isInValid
 }
 
-export const extractDestinyPhone = (payload: object) => {
+export const extractDestinyPhone = (payload: object, throwError = true) => {
   const data = payload as any
   const number = data?.to || (
     (
-      data.entry
+      data?.entry
       && data.entry[0]
       && data.entry[0].changes
       && data.entry[0].changes[0]
@@ -363,7 +363,7 @@ export const extractDestinyPhone = (payload: object) => {
       )
     )
   )
-  if (!number) {
+  if (!number && throwError) {
     throw Error(`error on get phone number from ${JSON.stringify(payload)}`)
   }
   return number
@@ -478,8 +478,9 @@ export const jidToPhoneNumberIfUser = (value: any): string => {
 export const fromBaileysMessageContent = (phone: string, payload: any, config?: Partial<Config>): any => {
   try {
     const {
-      key: { remoteJid, id: whatsappMessageId, participant, fromMe },
+      key: { remoteJid, id: whatsappMessageId, participant: participant1, fromMe }, participant: participant2
     } = payload
+    const participant = participant1 || participant2
     const chatJid = formatJid(remoteJid)
     const isIndividual = isIndividualJid(chatJid)
     const senderJid = isIndividual ? chatJid : (participant && formatJid(participant)) || chatJid
