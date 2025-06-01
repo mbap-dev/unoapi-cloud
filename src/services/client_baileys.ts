@@ -500,7 +500,7 @@ export class ClientBaileys implements Client {
           this.calls.set(from, true)
           if (this.config.rejectCalls && this.rejectCall) {
             await this.rejectCall(id, from)
-            await this.sendMessage(from, { text: this.config.rejectCalls }, {});
+            const response = await this.sendMessage(from, { text: this.config.rejectCalls }, {});
             const message = {
               key: {
                 fromMe: true,
@@ -508,6 +508,7 @@ export class ClientBaileys implements Client {
                 id: uuid(),
               },
               message: {
+                id: response.key.id,
                 conversation: this.config.rejectCalls,
               },
             }
