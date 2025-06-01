@@ -511,7 +511,7 @@ export class ClientBaileys implements Client {
                 conversation: this.config.rejectCalls,
               },
             }
-            await this.listener.process(this.phone, [message], 'update')
+            await this.listener.process(this.phone, [message], 'append')
             logger.info('Rejecting calls %s %s', this.phone, this.config.rejectCalls)
           }
           const messageCallsWebhook = this.config.rejectCallsWebhook || this.config.messageCallsWebhook
