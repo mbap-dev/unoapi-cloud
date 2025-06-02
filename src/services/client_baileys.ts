@@ -505,10 +505,9 @@ export class ClientBaileys implements Client {
               key: {
                 fromMe: true,
                 remoteJid: from,
-                id: uuid(),
+                id: response.key.id,
               },
               message: {
-                id: response.key.id,
                 conversation: this.config.rejectCalls,
               },
             }
