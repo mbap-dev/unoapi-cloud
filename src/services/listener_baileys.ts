@@ -95,6 +95,7 @@ export class ListenerBaileys implements Listener {
     const store = await config.getStore(phone, config)
 
     if (
+      config.incomingDeletesAsEdits &&
       messageType === 'update' &&
       !i.key.fromMe &&
       ((i as any).update?.status === 'DELETED' || (i as any).update?.messageStubType === 1)

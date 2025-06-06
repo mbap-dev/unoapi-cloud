@@ -70,6 +70,7 @@ export type Config = {
   sendProfilePicture: boolean
   authToken: string | undefined
   authHeader: string | undefined
+  incomingDeletesAsEdits: boolean
   provider: 'baileys' | 'forwarder' | undefined
   server:  string | undefined
   connectionType: connectionType
@@ -128,6 +129,7 @@ export const defaultConfig: Config = {
   ignoreDataStore: false,
   sendReactionAsReply: false,
   sendProfilePicture: false,
+  incomingDeletesAsEdits: false,
   proxyUrl: undefined,
   authToken: undefined,
   authHeader: undefined,

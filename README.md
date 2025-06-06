@@ -406,6 +406,7 @@ THROW_WEBHOOK_ERROR=false send webhook error do self whatsapp, default is false,
 NOTIFY_FAILED_MESSAGES=true send message to your self in whatsapp when message failed and enqueued in dead queue
 SEND_REACTION_AS_REPLY=true to send reactions as replay, default false
 SEND_PROFILE_PICTURE=true to send profile picture users and groups, default is true
+INCOMING_DELETES_AS_EDITS=true convert incoming message deletions into edit events, default false
 PROXY_URL=the socks proxy url, default not use
 WEBHOOK_FORWARD_PHONE_NUMBER_ID=the phone number id of whatsapp cloud api, default is empty
 WEBHOOK_FORWARD_BUSINESS_ACCOUNT_ID=the business account id of whatsapp cloud api, default is empty
