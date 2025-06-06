@@ -113,14 +113,14 @@ export class ListenerBaileys implements Listener {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const msg: any = bin?.message || {}
           const text = msg.text || msg.conversation || msg.caption || ''
-          const prefix = t('message_deleted_prefix')
+          const deletedPrefix = t('message_deleted_prefix')
           i = {
             key: delKey,
             messageTimestamp: i.messageTimestamp,
             pushName: i.pushName,
             message: {
               editedMessage: {
-                message: { conversation: `${prefix}${text}` },
+                message: { conversation: `${deletedPrefix}${text}` },
               },
             },
           } as WAMessage
