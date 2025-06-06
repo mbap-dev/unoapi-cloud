@@ -3,11 +3,12 @@ import logger from './logger'
 import { Outgoing } from './outgoing'
 import { Broadcast } from './broadcast'
 import { getConfig } from './config'
-import { fromBaileysMessageContent, getMessageType, BindTemplateError, isSaveMedia } from './transformer'
+import { fromBaileysMessageContent, getMessageType, BindTemplateError, isSaveMedia, getBinMessage } from './transformer'
 import { WAMessage, delay } from 'baileys'
 import { Template } from './template'
 import { UNOAPI_DELAY_AFTER_FIRST_MESSAGE_MS, UNOAPI_DELAY_BETWEEN_MESSAGES_MS } from '../defaults'
 import { v1 as uuid } from 'uuid'
+import { t } from '../i18n'
 
 const  delays: Map<String, number> = new Map()
 
@@ -88,10 +89,48 @@ export class ListenerBaileys implements Listener {
   public async sendOne(phone: string, message: object) {
     logger.debug(`Listener receive message %s`, JSON.stringify(message))
     let i: WAMessage = message as WAMessage
-    const messageType = getMessageType(message)
+    let messageType = getMessageType(message)
     logger.debug(`messageType %s...`, messageType)
     const config = await this.getConfig(phone)
     const store = await config.getStore(phone, config)
+
+    if (
+      config.incomingDeletesAsEdits &&
+      messageType === 'update' &&
+      !i.key.fromMe &&
+      ((i as any).update?.status === 'DELETED' || (i as any).update?.messageStubType === 1)
+    ) {
+      try {
+        const delKey = i.key
+        let orig = await store.dataStore.loadMessage(delKey.remoteJid!, delKey.id!)
+        if (!orig) {
+          const mapped = await store.dataStore.loadKey(delKey.id!)
+          if (mapped) {
+            orig = await store.dataStore.loadMessage(mapped.remoteJid!, mapped.id!)
+          }
+        }
+        if (orig) {
+          const bin = getBinMessage(orig)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const msg: any = bin?.message || {}
+          const text = msg.text || msg.conversation || msg.caption || ''
+          const deletedPrefix = t('message_deleted_prefix')
+          i = {
+            key: delKey,
+            messageTimestamp: i.messageTimestamp,
+            pushName: i.pushName,
+            message: {
+              editedMessage: {
+                message: { conversation: `${deletedPrefix}${text}` },
+              },
+            },
+          } as WAMessage
+          messageType = getMessageType(i)
+        }
+      } catch (error) {
+        logger.error(error, 'Error converting delete to edit')
+      }
+    }
     if (messageType && !['update', 'receipt'].includes(messageType)) {
       i = await config.getMessageMetadata(i)
       if (i.key && i.key) {

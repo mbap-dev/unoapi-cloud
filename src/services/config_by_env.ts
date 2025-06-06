@@ -31,6 +31,7 @@ import {
   SEND_REACTION_AS_REPLY,
   WEBHOOK_TIMEOUT_MS,
   SEND_PROFILE_PICTURE,
+  INCOMING_DELETES_AS_EDITS,
   WEBHOOK_SEND_NEW_MESSAGES,
   WEBHOOK_SEND_GROUP_MESSAGES,
   WEBHOOK_SEND_OUTGOING_MESSAGES,
@@ -81,6 +82,7 @@ export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> 
     config.sendReactionAsReply = SEND_REACTION_AS_REPLY
     config.sendProfilePicture = SEND_PROFILE_PICTURE
     config.sessionWebhook = WEBHOOK_SESSION
+    config.incomingDeletesAsEdits = INCOMING_DELETES_AS_EDITS
     config.proxyUrl = PROXY_URL
     config.authToken = UNOAPI_AUTH_TOKEN
     config.authHeader = UNOAPI_HEADER_NAME
