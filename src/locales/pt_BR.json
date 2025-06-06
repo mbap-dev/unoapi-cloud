@@ -27,5 +27,6 @@
   "proxy_error": "Erro ao conectar no proxy: %s",
   "session_conflict": "O número the sessão usado é o %s mas o número da configuração é %s",
   "waiting_information": "Esperando por qrcode/pairing code",
-  "reload": "Recarregar"
+  "reload": "Recarregar",
+  "message_deleted_prefix": "Esta mensagem foi apagada: "
 }
