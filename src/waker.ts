@@ -10,6 +10,14 @@ import {
 } from './defaults'
 import { Channel, ConsumeMessage } from 'amqplib'
 
+import * as Sentry from '@sentry/node'
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    sendDefaultPii: true,
+  })
+}
+
 import logger from './services/logger'
 import { queueDeadName, amqpConnect, amqpPublish, extractRoutingKeyFromBindingKey, ExchagenType } from './amqp'
 
@@ -58,11 +66,21 @@ const getExchangeName = queue => {
       await channel.unbindQueue(queueName, exchangeName)
     })
   )
-  // process.exit(1)
 })()
-  
+
+process.on('uncaughtException', (reason: any) => {
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(reason)
+  }
+  logger.error('uncaughtException waker: %s %s', reason, reason.stack)
+  process.exit(1)
+})
+
 process.on('unhandledRejection', (reason: any, promise) => {
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(reason)
+  }
   logger.error('unhandledRejection: %s', reason.stack)
   logger.error('promise: %s', promise)
-  throw reason
+  process.exit(1)
 })

@@ -11,6 +11,8 @@ import {
   UNOAPI_QUEUE_BLACKLIST_ADD,
   NOTIFY_FAILED_MESSAGES,
   UNOAPI_EXCHANGE_BROKER_NAME,
+  STATUS_FAILED_WEBHOOK_URL,
+  UNOAPI_QUEUE_WEBHOOK_STATUS_FAILED,
 } from './defaults'
 
 import { amqpConsume } from './amqp'
@@ -28,6 +30,7 @@ import { Incoming } from './services/incoming'
 import { Outgoing } from './services/outgoing'
 import { isInBlacklistInRedis } from './services/blacklist'
 import { NotificationJob } from './jobs/notification'
+import { WebhookStatusFailedJob } from './jobs/webhook_status_failed'
 import { addToBlacklist } from './jobs/add_to_blacklist'
 
 const incomingAmqp: Incoming = new IncomingAmqp(getConfigRedis)
@@ -37,6 +40,14 @@ const reloadJob = new ReloadJob(reload)
 const mediaJob = new MediaJob(getConfigRedis)
 const notificationJob = new NotificationJob(incomingAmqp)
 const outgingJob = new OutgoingJob(getConfigRedis, outgoingCloudApi)
+
+import * as Sentry from '@sentry/node'
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    sendDefaultPii: true,
+  })
+}
 
 const startBroker = async () => {
   await startRedis()
@@ -87,6 +98,18 @@ const startBroker = async () => {
     )
   }
 
+  if (STATUS_FAILED_WEBHOOK_URL) {
+    const job = new WebhookStatusFailedJob(STATUS_FAILED_WEBHOOK_URL)
+    logger.debug('Starting webhook status failed consumer %s', UNOAPI_SERVER_NAME)
+    await amqpConsume(
+      UNOAPI_EXCHANGE_BROKER_NAME,
+      UNOAPI_QUEUE_WEBHOOK_STATUS_FAILED,
+      '*',
+      job.consume.bind(job),
+      { notifyFailedMessages: false, type: 'topic' }
+    )
+  }
+
   logger.info('Starting blacklist add consumer %s', UNOAPI_SERVER_NAME)
   await amqpConsume(
     UNOAPI_EXCHANGE_BROKER_NAME,
@@ -100,7 +123,19 @@ const startBroker = async () => {
 }
 startBroker()
 
+process.on('uncaughtException', (reason: any) => {
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(reason)
+  }
+  logger.error('uncaughtException broker: %s %s', reason, reason.stack)
+  process.exit(1)
+})
+
 process.on('unhandledRejection', (reason: any, promise) => {
-  logger.error('unhandledRejection broker: %s %s %s', reason, reason.stack, promise)
-  throw reason
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(reason)
+  }
+  logger.error('unhandledRejection: %s', reason.stack)
+  logger.error('promise: %s', promise)
+  process.exit(1)
 })

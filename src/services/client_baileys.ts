@@ -625,7 +625,7 @@ export class ClientBaileys implements Client {
                 }
               }
             }
-            content = toBaileysMessageContent(payload)
+            content = toBaileysMessageContent(payload, this.config.customMessageCharactersFunction)
           }
           let quoted: WAMessage | undefined = undefined
           let disappearingMessagesInChat: boolean | number = false
@@ -760,7 +760,7 @@ export class ClientBaileys implements Client {
                     statuses: [
                       {
                         id,
-                        recipient_id: jidToPhoneNumber(to, ''),
+                        recipient_id: jidToPhoneNumber(to || this.phone, ''),
                         status: 'failed',
                         timestamp: Math.floor(Date.now() / 1000),
                         errors: [

@@ -66,7 +66,7 @@ export const UNOAPI_EXCHANGE_BRIDGE_NAME = `${UNOAPI_EXCHANGE_NAME}.brigde`
 export const UNOAPI_QUEUE_NAME = process.env.UNOAPI_QUEUE_NAME || 'unoapi'
 export const UNOAPI_QUEUE_OUTGOING_PREFETCH = parseInt(process.env.UNOAPI_QUEUE_OUTGOING_PREFETCH || '1')
 export const UNOAPI_QUEUE_DELAYED = `${UNOAPI_QUEUE_NAME}.delayed`
-export const UNOAPI_QUEUE_FAILED = `${UNOAPI_QUEUE_NAME}.failed`
+export const UNOAPI_QUEUE_WEBHOOK_STATUS_FAILED = `${UNOAPI_QUEUE_NAME}.webhook.status.failed`
 export const UNOAPI_QUEUE_MEDIA = `${UNOAPI_QUEUE_NAME}.media`
 export const UNOAPI_QUEUE_NOTIFICATION = `${UNOAPI_QUEUE_NAME}.notification`
 export const UNOAPI_QUEUE_LISTENER = `${UNOAPI_QUEUE_NAME}.listener`
@@ -90,6 +90,7 @@ export const UNOAPI_MESSAGE_RETRY_DELAY = parseInt(process.env.UNOAPI_MESSAGE_RE
 export const UNOAPI_DELAY_BETWEEN_MESSAGES_MS = parseInt(process.env.UNOAPI_DELAY_BETWEEN_MESSAGES_MS || '0')
 export const UNOAPI_DELAY_AFTER_FIRST_MESSAGE_MS = parseInt(process.env.UNOAPI_DELAY_AFTER_FIRST_MESSAGE_MS || '0')
 export const UNOAPI_DELAY_AFTER_FIRST_MESSAGE_WEBHOOK_MS = parseInt(process.env.UNOAPI_DELAY_AFTER_FIRST_MESSAGE_WEBHOOK_MS || '0')
+export const CUSTOM_MESSAGE_CHARACTERS = JSON.parse(process.env.CUSTOM_MESSAGE_CHARACTERS || '[]')
 export const UNOAPI_BULK_BATCH = parseInt(process.env.UNOAPI_BULK_BATCH || '5')
 export const UNOAPI_BULK_DELAY = parseInt(process.env.UNOAPI_BULK_DELAY || '60')
 export const MAX_CONNECT_RETRY = parseInt(process.env.MAX_CONNECT_RETRY || '3')
@@ -146,6 +147,10 @@ export const WAVOIP_TOKEN = process.env.WAVOIP_TOKEN || ''
 export const ONLY_HELLO_TEMPLATE: boolean = process.env.ONLY_HELLO_TEMPLATE === _undefined ? false : process.env.ONLY_HELLO_TEMPLATE == 'true'
 export const DEFAULT_BROWSER = [CONFIG_SESSION_PHONE_CLIENT, CONFIG_SESSION_PHONE_NAME, release()]
 export const QR_TIMEOUT_MS = parseInt(process.env.QR_TIMEOUT_MS || '60000')
+export const STATUS_FAILED_WEBHOOK_URL = process.env.STATUS_FAILED_WEBHOOK_URL || ''
+
+export const VALIDATE_SESSION_NUMBER: boolean =
+  process.env.VALIDATE_SESSION_NUMBER === _undefined ? false : process.env.VALIDATE_SESSION_NUMBER == 'true'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const STORAGE_OPTIONS = (storage: any) => {
