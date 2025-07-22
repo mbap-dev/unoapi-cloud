@@ -3,7 +3,8 @@ import logger from './logger'
 import { Outgoing } from './outgoing'
 import { Broadcast } from './broadcast'
 import { getConfig } from './config'
-import { fromBaileysMessageContent, getMessageType, BindTemplateError, isSaveMedia } from './transformer'
+import { fromBaileysMessageContent, getMessageType, BindTemplateError, isSaveMedia, getBinMessage, getNormalizedMessage } from './transformer'
+import { t } from '../i18n'
 import { WAMessage, delay } from 'baileys'
 import { Template } from './template'
 import { UNOAPI_DELAY_AFTER_FIRST_MESSAGE_MS, UNOAPI_DELAY_BETWEEN_MESSAGES_MS } from '../defaults'
@@ -41,13 +42,34 @@ export class ListenerBaileys implements Listener {
 
   async process(phone: string, messages: object[], type: eventType) {
     logger.debug('Received %s(s) %s', type, messages.length, phone)
-    if (type == 'delete' && messages.keys) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      messages = (messages.keys as any).map((key: any) => {
-        return { key, update: { status: 'DELETED' } }
-      })
-    }
     const config = await this.getConfig(phone)
+    if (type == 'delete' && messages.keys) {
+      const store = await config.getStore(phone, config)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      messages = await Promise.all((messages.keys as any).map(async (key: any) => {
+        if (key.fromMe) {
+          return { key, update: { status: 'DELETED' } }
+        }
+        const original = await store.dataStore.loadMessage(key.remoteJid!, key.id)
+        let originalText = ''
+        if (original) {
+          const normalized = getNormalizedMessage(original)
+          const bin = normalized && getBinMessage(normalized)
+          if (bin) {
+            if (bin.messageType === 'conversation') {
+              originalText = bin.message as string
+            } else if (bin.messageType === 'extendedTextMessage') {
+              originalText = bin.message.text
+            } else if (bin.message && bin.message.caption) {
+              originalText = bin.message.caption
+            }
+          }
+        }
+        const text = originalText ? `${t('deleted_message')}${originalText}` : t('deleted_message')
+        return { key, message: { editedMessage: { message: { conversation: text } } } }
+      }))
+      type = 'update'
+    }
     if (type === 'append' && !config.ignoreOwnMessages) {
       // filter self message send with this session to not send same message many times
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

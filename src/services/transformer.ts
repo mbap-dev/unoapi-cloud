@@ -338,24 +338,36 @@ export const isValidPhoneNumber = (value: string, nine = false): boolean => {
   return !isInValid
 }
 
-export const extractDestinyPhone = (payload: object) => {
-  const data = payload as any;
-
-  const getValidPhone = (phone?: string) =>
-    phone && phone.trim() !== '' ? phone.replace('+', '') : null;
-
-  const number =
-    data?.to ||
-    getValidPhone(data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id) ||
-    getValidPhone(data?.entry?.[0]?.changes?.[0]?.value?.statuses?.[0]?.recipient_id) ||
-    getValidPhone(data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from);
-
-  if (!number) {
-    throw Error(`error on get phone number from ${JSON.stringify(payload)}`);
+export const extractDestinyPhone = (payload: object, throwError = true) => {
+  const data = payload as any
+  const number = data?.to || (
+    (
+      data?.entry
+      && data.entry[0]
+      && data.entry[0].changes
+      && data.entry[0].changes[0]
+      && data.entry[0].changes[0].value
+    ) && (
+      (
+        data.entry[0].changes[0].value.contacts
+        && data.entry[0].changes[0].value.contacts[0]
+        && data.entry[0].changes[0].value.contacts[0].wa_id?.replace('+', '')
+      ) || (
+        data.entry[0].changes[0].value.statuses
+        && data.entry[0].changes[0].value.statuses[0]
+        && data.entry[0].changes[0].value.statuses[0].recipient_id?.replace('+', '')
+      ) || (
+        data.entry[0].changes[0].value.messsages
+        && data.entry[0].changes[0].value.messsages[0]
+        && data.entry[0].changes[0].value.messsages[0].from?.replace('+', '')
+      )
+    )
+  )
+  if (!number && throwError) {
+    throw Error(`error on get phone number from ${JSON.stringify(payload)}`)
   }
-
-  return number;
-};
+  return number
+}
 
 export const getGroupId = (payload: object) => {
   const data = payload as any
@@ -466,8 +478,9 @@ export const jidToPhoneNumberIfUser = (value: any): string => {
 export const fromBaileysMessageContent = (phone: string, payload: any, config?: Partial<Config>): any => {
   try {
     const {
-      key: { remoteJid, id: whatsappMessageId, participant, fromMe },
+      key: { remoteJid, id: whatsappMessageId, participant: participant1, fromMe }, participant: participant2
     } = payload
+    const participant = participant1 || participant2
     const chatJid = formatJid(remoteJid)
     const isIndividual = isIndividualJid(chatJid)
     const senderJid = isIndividual ? chatJid : (participant && formatJid(participant)) || chatJid

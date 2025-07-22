@@ -13,10 +13,12 @@ import {
   CONSUMER_TIMEOUT_MS,
   UNOAPI_SERVER_NAME,
   UNOAPI_EXCHANGE_BROKER_NAME,
-  UNOAPI_EXCHANGE_BRIDGE_NAME
+  UNOAPI_EXCHANGE_BRIDGE_NAME,
+  IGNORED_TO_NUMBERS
 } from './defaults'
 import logger from './services/logger'
 import { version } from '../package.json'
+import { extractDestinyPhone } from './services/transformer'
 
 const withTimeout = (millis, error, promise) => {
   let timeoutPid
@@ -124,6 +126,9 @@ export const amqpGetExchange = async (exchange: string, type: ExchagenType, pref
     await channel.prefetch(prefetch)
     await channel.assertExchange(exchange, type, { durable: true,  arguments: { 'x-max-priority': 5 }})
 
+    const exchangeDeadId = queueDeadName(exchange)
+    await amqpChannel.assertExchange(exchangeDeadId, 'topic', { durable: true })
+
     const exchangeDelayedId = queueDelayedName(exchange)
     await amqpChannel.assertExchange(exchangeDelayedId, 'topic', { durable: true , arguments: {
       'x-dead-letter-exchange': exchange
@@ -165,8 +170,9 @@ export const amqpGetQueue = async (
     let deadLetterExchange = exchange
 
     const queueDeadId = queueDeadName(queue)
+    const exchangeDeadId = queueDeadName(exchange)
     const queueDead = await channel.assertQueue(queueDeadId, { durable: true })
-    await amqpChannel.bindQueue(queueDeadId, exchange, `${queueDeadId}.*`)
+    await amqpChannel.bindQueue(queueDeadId, exchangeDeadId, `${queueDeadId}.*`)
 
     const exchangeDelayedId = queueDelayedName(exchange)
     const queueDelayedId = queueDelayedName(queue)
@@ -239,6 +245,7 @@ export const amqpPublish = async (
     queueUsed = queueDelayed
   } else if (dead) {
     queueUsed = queueDead
+    exchangeUsed = queueDeadName(exchange)
   }
   const destiny = bindingKey(queueUsed.queue, routingKey)
   await channel.publish(exchangeUsed, destiny, Buffer.from(JSON.stringify(payload)), properties)
@@ -281,6 +288,8 @@ export const amqpConsume = async (
       logger.debug('Received in queue %s, with routing key: %s, with message: %s with headers: %s', queue, routingKey, content, JSON.stringify(payload.properties.headers))
       if (IGNORED_CONNECTIONS_NUMBERS.includes(routingKey)) {
         logger.info(`Ignore messages from ${routingKey}`)
+      } else if (IGNORED_TO_NUMBERS.length > 0 && IGNORED_TO_NUMBERS.includes(extractDestinyPhone(data.payload, false))) {
+        logger.info(`Ignore messages to ${extractDestinyPhone(data.payload)}`)
       } else {
         const timeoutError = `timeout ${CONSUMER_TIMEOUT_MS} is exceeded consume queue: ${queue}, routing key: ${routingKey}, payload: ${content}`
         await withTimeout(CONSUMER_TIMEOUT_MS, timeoutError, callback(routingKey, data, { countRetries, maxRetries }))
