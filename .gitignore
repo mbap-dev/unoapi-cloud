@@ -8,3 +8,6 @@ data/stores/*
 data/sessions/*
 .env
 .idea/*
+
+.yarn/*
+.yarnrc.yml

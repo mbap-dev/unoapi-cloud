@@ -13,6 +13,7 @@ import {
   UNOAPI_EXCHANGE_BROKER_NAME,
   STATUS_FAILED_WEBHOOK_URL,
   UNOAPI_QUEUE_WEBHOOK_STATUS_FAILED,
+  UNOAPI_QUEUE_TIMER,
 } from './defaults'
 
 import { amqpConsume } from './amqp'
@@ -32,6 +33,7 @@ import { isInBlacklistInRedis } from './services/blacklist'
 import { NotificationJob } from './jobs/notification'
 import { WebhookStatusFailedJob } from './jobs/webhook_status_failed'
 import { addToBlacklist } from './jobs/add_to_blacklist'
+import { TimerJob } from './jobs/timer'
 
 const incomingAmqp: Incoming = new IncomingAmqp(getConfigRedis)
 const outgoingCloudApi: Outgoing = new OutgoingCloudApi(getConfigRedis, isInBlacklistInRedis)
@@ -40,6 +42,7 @@ const reloadJob = new ReloadJob(reload)
 const mediaJob = new MediaJob(getConfigRedis)
 const notificationJob = new NotificationJob(incomingAmqp)
 const outgingJob = new OutgoingJob(getConfigRedis, outgoingCloudApi)
+const timerJob = new TimerJob(incomingAmqp)
 
 import * as Sentry from '@sentry/node'
 if (process.env.SENTRY_DSN) {
@@ -84,6 +87,15 @@ const startBroker = async () => {
     UNOAPI_QUEUE_OUTGOING,
     '*',
     outgingJob.consume.bind(outgingJob),
+    { notifyFailedMessages, prefetch, type: 'topic' }
+  )
+
+  logger.info('Starting timer consumer %s', UNOAPI_SERVER_NAME)
+  await amqpConsume(
+    UNOAPI_EXCHANGE_BROKER_NAME,
+    UNOAPI_QUEUE_TIMER,
+    '*',
+    timerJob.consume.bind(timerJob),
     { notifyFailedMessages, prefetch, type: 'topic' }
   )
 
