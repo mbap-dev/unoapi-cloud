@@ -12,7 +12,6 @@ import makeWASocket, {
   Browsers,
   ConnectionState,
   UserFacingSocketConfig,
-  fetchLatestWaWebVersion,
   WAVersion,
 } from 'baileys'
 import MAIN_LOGGER from 'baileys/lib/Utils/logger'
@@ -37,6 +36,7 @@ import {
 } from '../defaults'
 import { t } from '../i18n'
 import { SendError } from './send_error'
+import { fetchLatestWaWebVersion } from '../fetchLatestWaWebVersion'
 
 const EVENTS = [
   'connection.update',
