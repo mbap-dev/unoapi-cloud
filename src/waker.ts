@@ -28,7 +28,7 @@ const bridgeQueues = [UNOAPI_QUEUE_LISTENER, UNOAPI_QUEUE_INCOMING]
 
 const queues = bridgeQueues.concat(brokerQueues)
 
-const getExchangeName = queue => {
+const getExchangeName = (queue) => {
   if (bridgeQueues.includes(queue)) {
     return UNOAPI_EXCHANGE_BRIDGE_NAME
   } else if (brokerQueues.includes(queue)) {
@@ -38,10 +38,10 @@ const getExchangeName = queue => {
   }
 }
 
-(async () => {
+;(async () => {
   return Promise.all(
-    queues.map(async queue => {
-      const connection =  await amqpConnect()
+    queues.map(async (queue) => {
+      const connection = await amqpConnect()
       const queueName = queueDeadName(queue)
       const exchangeName = queueDeadName(getExchangeName(queue))
       const exchangeType = 'topic'
@@ -54,17 +54,13 @@ const getExchangeName = queue => {
         if (!payload) {
           throw 'payload not be null'
         }
-        await amqpPublish(
-          exchangeName, 
-          queue, 
-          extractRoutingKeyFromBindingKey(payload.fields.routingKey),
-          JSON.parse(payload.content.toString()),
-          { type: exchangeType }
-        )
+        await amqpPublish(exchangeName, queue, extractRoutingKeyFromBindingKey(payload.fields.routingKey), JSON.parse(payload.content.toString()), {
+          type: exchangeType,
+        })
         return channel.ack(payload)
       })
       await channel.unbindQueue(queueName, exchangeName)
-    })
+    }),
   )
 })()
 

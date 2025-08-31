@@ -1,11 +1,4 @@
-import {
-  proto,
-  WAMessage,
-  WAMessageKey,
-  WASocket,
-  useMultiFileAuthState,
-  GroupMetadata
-} from 'baileys'
+import { proto, WAMessage, WAMessageKey, WASocket, useMultiFileAuthState, GroupMetadata } from 'baileys'
 import { isIndividualJid, jidToPhoneNumber, phoneNumberToJid } from './transformer'
 import { existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'fs'
 import { DataStore, MessageStatus } from './data_store'
@@ -31,17 +24,17 @@ export const getDataStoreFile: getDataStore = async (phone: string, config: Conf
 }
 
 const deepMerge = (obj1, obj2) => {
-  const result = { ...obj1 };
+  const result = { ...obj1 }
   for (let key in obj2) {
     if (obj2.hasOwnProperty(key)) {
       if (obj2[key] instanceof Object && obj1[key] instanceof Object) {
-        result[key] = deepMerge(obj1[key], obj2[key]);
+        result[key] = deepMerge(obj1[key], obj2[key])
       } else {
-        result[key] = obj2[key];
+        result[key] = obj2[key]
       }
     }
   }
-  return result;
+  return result
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,22 +49,21 @@ const dataStoreFile = async (phone: string, config: Config): Promise<DataStore> 
   const store = await useMultiFileAuthState(SESSION_DIR)
   const dataStore = store as DataStore
   dataStore.type = 'file'
-
-	dataStore.loadMessage = async(jid: string, id: string) => messages.get(`${jid}-${id}`),
-  dataStore.toJSON = () => {
-    return {
-      messages,
-      keys,
-      jids,
-      ids,
-      statuses,
-      groups: groups.keys().reduce((acc, key) => {
+  ;((dataStore.loadMessage = async (jid: string, id: string) => messages.get(`${jid}-${id}`)),
+    (dataStore.toJSON = () => {
+      return {
+        messages,
+        keys,
+        jids,
+        ids,
+        statuses,
+        groups: groups.keys().reduce((acc, key) => {
           acc.set(key, groups.get(key))
           return acc
         }, new Map()),
-      medias,
-    }
-  }
+        medias,
+      }
+    }))
   dataStore.fromJSON = (json) => {
     json?.messages.entries().forEach(([key, value]) => {
       messages.set(key, value)
@@ -95,7 +87,7 @@ const dataStoreFile = async (phone: string, config: Config): Promise<DataStore> 
       medias.set(key, value)
     })
   }
-	dataStore.writeToFile = (path: string) => {
+  dataStore.writeToFile = (path: string) => {
     const { writeFileSync } = require('fs')
     // for(const a in Object.keys(dataStore.toJSON())) {
     //   console.log(a)
@@ -104,7 +96,7 @@ const dataStoreFile = async (phone: string, config: Config): Promise<DataStore> 
   }
   dataStore.readFromFile = (path: string) => {
     const { readFileSync, existsSync } = require('fs')
-    if(existsSync(path)) {
+    if (existsSync(path)) {
       logger.debug({ path }, 'reading from file')
       const jsonStr = readFileSync(path, { encoding: 'utf-8' })
       const json = JSON.parse(jsonStr)
@@ -170,7 +162,7 @@ const dataStoreFile = async (phone: string, config: Config): Promise<DataStore> 
     return statuses.get(id)
   }
 
-  dataStore.loadUnoId = async (id: string) =>  ids.get(id) || ids.get(`${phone}-${id}`)
+  dataStore.loadUnoId = async (id: string) => ids.get(id) || ids.get(`${phone}-${id}`)
   dataStore.setUnoId = async (id: string, unoId: string) => {
     ids.set(`${phone}-${id}`, unoId)
   }
@@ -195,9 +187,7 @@ const dataStoreFile = async (phone: string, config: Config): Promise<DataStore> 
           } else if ('status@broadcast' == phoneOrJid) {
             return phoneOrJid
           }
-        } catch (error) {
-          
-        }
+        } catch (error) {}
       }
       const result = results && results[0]
       const test = result && result?.exists && result?.jid

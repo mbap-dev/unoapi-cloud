@@ -26,7 +26,7 @@ export class IncomingJob {
     const config = await this.getConfig(phone)
     if (config.server !== UNOAPI_SERVER_NAME) {
       logger.info(`Ignore incoming with ${phone} server ${config.server} is not server current server ${UNOAPI_SERVER_NAME}...`)
-      return;
+      return
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const a = data as any
@@ -46,7 +46,7 @@ export class IncomingJob {
       await amqpPublish(UNOAPI_EXCHANGE_BROKER_NAME, this.queueCommander, phone, { payload }, { type: 'topic' })
     }
     const { ok, error } = response
-    const optionsOutgoing: Partial<PublishOption>  = {}
+    const optionsOutgoing: Partial<PublishOption> = {}
     if (ok && ok.messages && ok.messages[0] && ok.messages[0].id) {
       const idProvider: string = ok.messages[0].id
       logger.debug('%s id %s to Unoapi id %s', config.provider, idProvider, idUno)
@@ -64,7 +64,7 @@ export class IncomingJob {
         const mimetype = getMimetype(payload)
         const extension = mime.extension(mimetype)
         const fileName = `${mediaKey}.${extension}`
-        const response: Response = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'GET'})
+        const response: Response = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'GET' })
         const buffer = toBuffer(await response.arrayBuffer())
         await mediaStore.saveMediaBuffer(fileName, buffer)
         messagePayload = {
@@ -176,13 +176,7 @@ export class IncomingJob {
         ],
       }
     }
-    await amqpPublish(
-      UNOAPI_EXCHANGE_BROKER_NAME,
-      UNOAPI_QUEUE_BULK_STATUS,
-      phone,
-      { payload: outgingPayload, type: 'whatsapp' },
-      { type: 'topic' }
-    )
+    await amqpPublish(UNOAPI_EXCHANGE_BROKER_NAME, UNOAPI_QUEUE_BULK_STATUS, phone, { payload: outgingPayload, type: 'whatsapp' }, { type: 'topic' })
     await Promise.all(config.webhooks.map((w) => this.outgoing.sendHttp(phone, w, outgingPayload, optionsOutgoing)))
     return response
   }

@@ -14,7 +14,7 @@ export interface GetMessageMetadata {
 export const getMessageMetadataDefault: GetMessageMetadata = async <T>(data: T) => data
 
 export type Webhook = {
-  id: string,
+  id: string
   url: string
   urlAbsolute: string
   token: string
@@ -73,17 +73,17 @@ export type Config = {
   authToken: string | undefined
   authHeader: string | undefined
   provider: 'baileys' | 'forwarder' | undefined
-  server:  string | undefined
+  server: string | undefined
   connectionType: connectionType
-  wavoipToken:  string | undefined
+  wavoipToken: string | undefined
   useRedis: boolean
   useS3: boolean
   qrTimeoutMs: number
   label: string
   overrideWebhooks: boolean
   customMessageCharacters: string[]
-  customMessageCharactersFunction: (message: string) => string,
-  whatsappVersion: WAVersion | undefined,
+  customMessageCharactersFunction: (message: string) => string
+  whatsappVersion: WAVersion | undefined
 }
 
 export const defaultConfig: Config = {
@@ -149,7 +149,7 @@ export const defaultConfig: Config = {
   overrideWebhooks: false,
   customMessageCharacters: [],
   customMessageCharactersFunction: (message: string) => message,
-  whatsappVersion: undefined
+  whatsappVersion: undefined,
 }
 
 export interface getConfig {

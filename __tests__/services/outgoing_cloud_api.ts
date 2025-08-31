@@ -44,7 +44,7 @@ describe('service outgoing whatsapp cloud api', () => {
     service = new OutgoingCloudApi(getConfig, isInBlacklistInMemory)
     textPayload = {
       text: {
-        body: 'test'
+        body: 'test',
       },
       type: 'text',
       to: 'abc',
@@ -57,8 +57,8 @@ describe('service outgoing whatsapp cloud api', () => {
             {
               value: {
                 metadata: { display_phone_number: 'abc' },
-                messages: [ { from: 'abc' }, ]
-              }
+                messages: [{ from: 'abc' }],
+              },
             },
           ],
         },
@@ -71,7 +71,7 @@ describe('service outgoing whatsapp cloud api', () => {
           changes: [
             {
               value: {
-                statuses: [ { status: 'deleted' } ]
+                statuses: [{ status: 'deleted' }],
               },
             },
           ],

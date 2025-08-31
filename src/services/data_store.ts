@@ -7,20 +7,21 @@ export interface getDataStore {
   (phone: string, config: Config): Promise<DataStore>
 }
 
-export type MessageStatus = 'scheduled'
-      | 'pending'
-      | 'without-whatsapp'
-      | 'invalid-phone-number'
-      | 'error'
-      | 'failed'
-      | 'sent'
-      | 'delivered'
-      | 'read'
-      | 'played'
-      | 'accepted'
-      | 'deleted'
+export type MessageStatus =
+  | 'scheduled'
+  | 'pending'
+  | 'without-whatsapp'
+  | 'invalid-phone-number'
+  | 'error'
+  | 'failed'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'played'
+  | 'accepted'
+  | 'deleted'
 
-export type DataStore  = {
+export type DataStore = {
   state: AuthenticationState
   saveCreds: () => Promise<void>
   type: string

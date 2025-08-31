@@ -63,12 +63,7 @@ export const TYPE_MESSAGES_TO_READ = [
   'ptvMessage',
 ]
 
-const OTHER_MESSAGES_TO_PROCESS = [
-  'protocolMessage',
-  'senderKeyDistributionMessage',
-  'messageContextInfo',
-  'messageStubType',
-]
+const OTHER_MESSAGES_TO_PROCESS = ['protocolMessage', 'senderKeyDistributionMessage', 'messageContextInfo', 'messageStubType']
 
 export const getMimetype = (payload: any) => {
   const { type } = payload
@@ -120,9 +115,7 @@ export const getMessageType = (payload: any) => {
     return 'receipt'
   } else if (payload.message) {
     const { message } = payload
-    return TYPE_MESSAGES_TO_READ.find((t) => message[t]) || 
-            OTHER_MESSAGES_TO_PROCESS.find((t) => message[t]) || 
-            Object.keys(payload.message)[0]
+    return TYPE_MESSAGES_TO_READ.find((t) => message[t]) || OTHER_MESSAGES_TO_PROCESS.find((t) => message[t]) || Object.keys(payload.message)[0]
   } else if (payload.messageStubType) {
     return 'messageStubType'
   }
@@ -149,7 +142,7 @@ export const getNormalizedMessage = (waMessage: WAMessage): WAMessage | undefine
     let { message } = binMessage
     if (message.editedMessage) {
       message = message.protocolMessage?.editedMessage
-    }else if (message.protocolMessage?.editedMessage) {
+    } else if (message.protocolMessage?.editedMessage) {
       message = message.protocolMessage?.editedMessage
     }
     return { key: waMessage.key, message: { [binMessage.messageType]: message } }
@@ -277,11 +270,7 @@ export const toBaileysMessageContent = (payload: any, customMessageCharactersFun
         const phone = contact['phones'][index]
         const waid = phone['wa_id']
         const number = phone['phone']
-        const vcard = 'BEGIN:VCARD\n'
-              + 'VERSION:3.0\n'
-              + `N:${contacName}\n`
-              + `TEL;type=CELL;type=VOICE;waid=${waid}:${number}\n`
-              + 'END:VCARD'
+        const vcard = 'BEGIN:VCARD\n' + 'VERSION:3.0\n' + `N:${contacName}\n` + `TEL;type=CELL;type=VOICE;waid=${waid}:${number}\n` + 'END:VCARD'
         contacts.push({ vcard })
       }
       const displayName = contact['phones'].length > 1 ? `${contact['phones'].length} contacts` : contacName
@@ -324,7 +313,9 @@ export const isIndividualMessage = (payload: any) => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getChatAndNumberAndId = (payload: any): [string, string, string] => {
-  const { key: { remoteJid } } = payload
+  const {
+    key: { remoteJid },
+  } = payload
   if (isIndividualJid(remoteJid)) {
     return [remoteJid, jidToPhoneNumber(remoteJid), remoteJid]
   } else {
@@ -337,7 +328,7 @@ export const getNumberAndId = (payload: any): [string, string] => {
   const {
     key: { remoteJid, senderPn, participantPn, participant, senderLid, participantLid },
     participant: participant2,
-    participantPn: participantPn2
+    participantPn: participantPn2,
   } = payload
 
   const value = senderLid || participantLid || participant || participant2 || remoteJid
@@ -366,29 +357,22 @@ export const isValidPhoneNumber = (value: string, nine = false): boolean => {
 
 export const extractDestinyPhone = (payload: object, throwError = true) => {
   const data = payload as any
-  const number = data?.to || (
-    (
-      data?.entry
-      && data.entry[0]
-      && data.entry[0].changes
-      && data.entry[0].changes[0]
-      && data.entry[0].changes[0].value
-    ) && (
-      (
-        data.entry[0].changes[0].value.contacts
-        && data.entry[0].changes[0].value.contacts[0]
-        && data.entry[0].changes[0].value.contacts[0].wa_id?.replace('+', '')
-      ) || (
-        data.entry[0].changes[0].value.statuses
-        && data.entry[0].changes[0].value.statuses[0]
-        && data.entry[0].changes[0].value.statuses[0].recipient_id?.replace('+', '')
-      ) || (
-        data.entry[0].changes[0].value.messages
-        && data.entry[0].changes[0].value.messages[0]
-        && data.entry[0].changes[0].value.messages[0].from?.replace('+', '')
-      )
-    )
-  )
+  const number =
+    data?.to ||
+    (data?.entry &&
+      data.entry[0] &&
+      data.entry[0].changes &&
+      data.entry[0].changes[0] &&
+      data.entry[0].changes[0].value &&
+      ((data.entry[0].changes[0].value.contacts &&
+        data.entry[0].changes[0].value.contacts[0] &&
+        data.entry[0].changes[0].value.contacts[0].wa_id?.replace('+', '')) ||
+        (data.entry[0].changes[0].value.statuses &&
+          data.entry[0].changes[0].value.statuses[0] &&
+          data.entry[0].changes[0].value.statuses[0].recipient_id?.replace('+', '')) ||
+        (data.entry[0].changes[0].value.messages &&
+          data.entry[0].changes[0].value.messages[0] &&
+          data.entry[0].changes[0].value.messages[0].from?.replace('+', ''))))
   if (!number && throwError) {
     throw Error(`error on get phone number from ${JSON.stringify(payload)}`)
   }
@@ -398,18 +382,15 @@ export const extractDestinyPhone = (payload: object, throwError = true) => {
 export const getGroupId = (payload: object) => {
   const data = payload as any
   return (
-      data.entry
-      && data.entry[0]
-      && data.entry[0].changes
-      && data.entry[0].changes[0]
-      && data.entry[0].changes[0].value
-    ) && (
-      (
-        data.entry[0].changes[0].value.contacts
-        && data.entry[0].changes[0].value.contacts[0]
-        && data.entry[0].changes[0].value.contacts[0].group_id
-      )
-    )
+    data.entry &&
+    data.entry[0] &&
+    data.entry[0].changes &&
+    data.entry[0].changes[0] &&
+    data.entry[0].changes[0].value &&
+    data.entry[0].changes[0].value.contacts &&
+    data.entry[0].changes[0].value.contacts[0] &&
+    data.entry[0].changes[0].value.contacts[0].group_id
+  )
 }
 
 export const isGroupMessage = (payload: object) => {
@@ -421,13 +402,12 @@ export const isNewsletterMessage = (payload: object) => {
   return groupId && isJidNewsletter(groupId)
 }
 
-export const extractSessionPhone  = (payload: object) => {
+export const extractSessionPhone = (payload: object) => {
   const data = payload as any
-  const session = data.entry[0].changes[0].value.messages
-                && data.entry[0].changes[0].value.metadata
-                && data.entry[0].changes[0].value.metadata.display_phone_number
+  const session =
+    data.entry[0].changes[0].value.messages && data.entry[0].changes[0].value.metadata && data.entry[0].changes[0].value.metadata.display_phone_number
 
-  return `${(session || '')}`.replaceAll('+', '')
+  return `${session || ''}`.replaceAll('+', '')
 }
 
 export const isOutgoingMessage = (payload: object) => {
@@ -450,17 +430,14 @@ export const isIncomingMessage = (payload: object) => {
 export const extractTypeMessage = (payload: object) => {
   const data = payload as any
   return (
-    (
-      data?.entry
-      && data.entry[0]
-      && data.entry[0].changes
-      && data.entry[0].changes[0]
-      && data.entry[0].changes[0].value
-    ) && (
-      data.entry[0].changes[0].value.messages
-      && data.entry[0].changes[0].value.messages[0]
-      && data.entry[0].changes[0].value.messages[0].type
-    )
+    data?.entry &&
+    data.entry[0] &&
+    data.entry[0].changes &&
+    data.entry[0].changes[0] &&
+    data.entry[0].changes[0].value &&
+    data.entry[0].changes[0].value.messages &&
+    data.entry[0].changes[0].value.messages[0] &&
+    data.entry[0].changes[0].value.messages[0].type
   )
 }
 
@@ -468,12 +445,12 @@ export const isAudioMessage = (payload: object) => {
   return 'audio' == extractTypeMessage(payload)
 }
 
-
 export const isFailedStatus = (payload: object) => {
   const data = payload as any
-  return 'failed' == (data.entry[0].changes[0].value.statuses
-                        && data.entry[0].changes[0].value.statuses[0]
-                        && data.entry[0].changes[0].value.statuses[0].status)
+  return (
+    'failed' ==
+    (data.entry[0].changes[0].value.statuses && data.entry[0].changes[0].value.statuses[0] && data.entry[0].changes[0].value.statuses[0].status)
+  )
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -497,7 +474,7 @@ export const jidToPhoneNumber = (value: any, plus = '+', retry = true): string =
 }
 
 export const jidToPhoneNumberIfUser = (value: any): string => {
-  return isIndividualJid(value) ? jidToPhoneNumber(value, '') : value 
+  return isIndividualJid(value) ? jidToPhoneNumber(value, '') : value
 }
 
 /*
@@ -541,7 +518,9 @@ export const jidToPhoneNumberIfUser = (value: any): string => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const fromBaileysMessageContent = (phone: string, payload: any, config?: Partial<Config>): [any, string, string] => {
   try {
-    const { key: { id: whatsappMessageId, fromMe } } = payload
+    const {
+      key: { id: whatsappMessageId, fromMe },
+    } = payload
     const [chatJid, senderPhone, senderId] = getChatAndNumberAndId(payload)
     const messageType = getMessageType(payload)
     const binMessage = payload.update || payload.receipt || (messageType && payload.message && payload.message[messageType])
@@ -621,7 +600,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         if (mediaType == 'pvt') {
           mediaType = mimetype.split('/')[0]
         }
-        message[mediaType] = { 
+        message[mediaType] = {
           caption: binMessage.caption,
           filename,
           mime_type: mimetype,
@@ -670,18 +649,22 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         }
         const editedMessageType = getMessageType(editedMessagePayload)
         const editedBinMessage = getBinMessage(editedMessagePayload)
-        if (editedMessageType && TYPE_MESSAGES_TO_PROCESS_FILE.includes(editedMessageType) && !editedBinMessage?.message?.url && editedBinMessage?.message?.caption) {
+        if (
+          editedMessageType &&
+          TYPE_MESSAGES_TO_PROCESS_FILE.includes(editedMessageType) &&
+          !editedBinMessage?.message?.url &&
+          editedBinMessage?.message?.caption
+        ) {
           editedMessagePayload.message = {
-            conversation: editedBinMessage?.message?.caption
+            conversation: editedBinMessage?.message?.caption,
           }
         }
         return fromBaileysMessageContent(phone, editedMessagePayload, config)
 
-      
       case 'protocolMessage':
         // {"key":{"remoteJid":"351912490567@s.whatsapp.net","fromMe":false,"id":"3EB0C77FBE5C8DACBEC5"},"messageTimestamp":1741714271,"pushName":"Pedro Paiva","broadcast":false,"message":{"protocolMessage":{"key":{"remoteJid":"351211450051@s.whatsapp.net","fromMe":true,"id":"3EB05C0B7B1A0C12284EE0"},"type":"MESSAGE_EDIT","editedMessage":{"conversation":"blablabla2","messageContextInfo":{"messageSecret":"4RYW9eIV1O4j5vjNmY059bZRymJ+B2aTfi9it9+2RxA="}},"timestampMs":"1741714271693"},"messageContextInfo":{"deviceListMetadata":{"senderKeyHash":"UgdPt0CEKvqhyg==","senderTimestamp":"1741018303","senderAccountType":"E2EE","receiverAccountType":"E2EE","recipientKeyHash":"EhuHta8R2tH+8g==","recipientTimestamp":"1740522549"},"deviceListMetadataVersion":2,"messageSecret":"4RYW9eIV1O4j5vjNmY059bZRymJ+B2aTfi9it9+2RxA="}}}
         if (binMessage.editedMessage) {
-          return fromBaileysMessageContent(phone, { ...payload, message: { editedMessage: { message: { protocolMessage: binMessage }}}}, config)
+          return fromBaileysMessageContent(phone, { ...payload, message: { editedMessage: { message: { protocolMessage: binMessage } } } }, config)
         } else {
           logger.debug(`Ignore message type ${messageType}`)
           return [null, senderPhone, senderId]
@@ -755,10 +738,12 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
 
       case 'messageStubType':
         MESSAGE_STUB_TYPE_ERRORS
-        if (payload.messageStubType == 2 && 
-            payload.messageStubParameters &&
-            payload.messageStubParameters[0] &&
-            MESSAGE_STUB_TYPE_ERRORS.includes(payload.messageStubParameters[0].toLowerCase())) {
+        if (
+          payload.messageStubType == 2 &&
+          payload.messageStubParameters &&
+          payload.messageStubParameters[0] &&
+          MESSAGE_STUB_TYPE_ERRORS.includes(payload.messageStubParameters[0].toLowerCase())
+        ) {
           message.text = {
             body: MESSAGE_CHECK_WAAPP || t('failed_decrypt'),
           }
@@ -933,10 +918,10 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
 }
 
 export const toBuffer = (arrayBuffer) => {
-  const buffer = Buffer.alloc(arrayBuffer.byteLength);
-  const view = new Uint8Array(arrayBuffer);
+  const buffer = Buffer.alloc(arrayBuffer.byteLength)
+  const view = new Uint8Array(arrayBuffer)
   for (let i = 0; i < buffer.length; ++i) {
-    buffer[i] = view[i];
+    buffer[i] = view[i]
   }
-  return buffer;
+  return buffer
 }

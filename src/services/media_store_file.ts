@@ -40,7 +40,7 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
 
   mediaStore.saveMediaForwarder = async (message: any) => {
     const filePath = mediaStore.getFilePath(phone, message.id, message[message.type].mime_type)
-    const url = `${config.webhookForward.url}/${config.webhookForward.version}/${ message[message.type].id}`
+    const url = `${config.webhookForward.url}/${config.webhookForward.version}/${message[message.type].id}`
     const { buffer } = await mediaToBuffer(url, config.webhookForward.token!, config.webhookForward?.timeoutMs || 0)
     logger.debug('Saving buffer %s...', filePath)
     await mediaStore.saveMediaBuffer(filePath, buffer)
@@ -175,7 +175,7 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
       if (!existsSync(base)) {
         mkdirSync(base, { recursive: true })
       }
-      const response: FetchResponse = await fetch(contact.imgUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'GET'})
+      const response: FetchResponse = await fetch(contact.imgUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'GET' })
       const buffer = toBuffer(await response.arrayBuffer())
       await writeFile(complete, buffer)
       logger.debug('Saved profile picture file %s!!', phoneNumber)
