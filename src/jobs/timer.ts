@@ -4,22 +4,25 @@ import { getLastTimer, delLastTimer } from '../services/redis'
 
 export class TimerJob {
   private incoming: Incoming
+  private getLastTimerFunction: typeof getLastTimer
 
-  constructor(incoming: Incoming) {
+  constructor(incoming: Incoming, getLastTimerFunction: typeof getLastTimer = getLastTimer) {
     this.incoming = incoming
+    this.getLastTimerFunction = getLastTimerFunction
   }
 
   async consume(phone: string, data: object) {
     const a = data as any
     const payload: any = a.payload
     const { message, to, time } = payload
-    const date = Date.parse(time)
-    const expiredDate = await getLastTimer(phone, to)
-    if (expiredDate && expiredDate > date) {
-      logger.debug('timer comsumer phone %s to %s already expired', phone, to)
-      await delLastTimer(phone, to)
+    const messageDate = Date.parse(time)
+    const string = await this.getLastTimerFunction(phone, to)
+    const lastTime = string ? Date.parse(string) : undefined
+    logger.debug('timer comsumer phone %s to %s time %s last time %s', phone, to, time, lastTime)
+    if (!lastTime || (lastTime > messageDate)) {
+      logger.debug('timer comsumer expired phone %s to %s', phone, to)
     } else {
-      logger.debug('timer consumer phone %s to %s enqueue', phone, to)
+      logger.debug('timer consumer enqueue phone %s to %s', phone, to)
       const body = {
         messaging_product: 'whatsapp',
         to,
@@ -28,7 +31,8 @@ export class TimerJob {
           body: message
         } 
       }
-      return this.incoming.send(phone, body, {})
+      await this.incoming.send(phone, body, {})
     }
+    return delLastTimer(phone, to)
   }
 }

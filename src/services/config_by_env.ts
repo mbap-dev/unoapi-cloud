@@ -52,6 +52,8 @@ import {
   WEBHOOK_FORWARD_BUSINESS_ACCOUNT_ID,
   CUSTOM_MESSAGE_CHARACTERS,
   WHATSAPP_VERSION,
+  WEBHOOK_SEND_INCOMING_MESSAGES,
+  WEBHOOK_SEND_TRANSCRIBE_AUDIO,
 } from '../defaults'
 
 export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> => {
@@ -99,6 +101,8 @@ export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> 
     config.webhooks[0].sendOutgoingMessages = WEBHOOK_SEND_OUTGOING_MESSAGES
     config.webhooks[0].sendNewsletterMessages = WEBHOOK_SEND_NEWSLETTER_MESSAGES
     config.webhooks[0].sendUpdateMessages = WEBHOOK_SEND_UPDATE_MESSAGES
+    config.webhooks[0].sendIncomingMessages = WEBHOOK_SEND_INCOMING_MESSAGES
+    config.webhooks[0].sendTranscribeAudio = WEBHOOK_SEND_TRANSCRIBE_AUDIO
 
     config.webhookForward.url = WEBHOOK_FORWARD_URL
     config.webhookForward.version = WEBHOOK_FORWARD_VERSION

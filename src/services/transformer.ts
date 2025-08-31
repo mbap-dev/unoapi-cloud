@@ -383,9 +383,9 @@ export const extractDestinyPhone = (payload: object, throwError = true) => {
         && data.entry[0].changes[0].value.statuses[0]
         && data.entry[0].changes[0].value.statuses[0].recipient_id?.replace('+', '')
       ) || (
-        data.entry[0].changes[0].value.messsages
-        && data.entry[0].changes[0].value.messsages[0]
-        && data.entry[0].changes[0].value.messsages[0].from?.replace('+', '')
+        data.entry[0].changes[0].value.messages
+        && data.entry[0].changes[0].value.messages[0]
+        && data.entry[0].changes[0].value.messages[0].from?.replace('+', '')
       )
     )
   )
@@ -421,21 +421,53 @@ export const isNewsletterMessage = (payload: object) => {
   return groupId && isJidNewsletter(groupId)
 }
 
-export const isOutgoingMessage = (payload: object) => {
+export const extractSessionPhone  = (payload: object) => {
   const data = payload as any
-  const from = data.entry[0].changes[0].value.messages
-                && data.entry[0].changes[0].value.messages[0]
-                && data.entry[0].changes[0].value.messages[0].from
   const session = data.entry[0].changes[0].value.messages
                 && data.entry[0].changes[0].value.metadata
                 && data.entry[0].changes[0].value.metadata.display_phone_number
-  return session && from && `${session}`.replaceAll('+', '') == `${from}`.replaceAll('+', '')
+
+  return `${(session || '')}`.replaceAll('+', '')
+}
+
+export const isOutgoingMessage = (payload: object) => {
+  const from = extractDestinyPhone(payload, false)
+  const session = extractSessionPhone(payload)
+  return session && from && session == from
 }
 
 export const isUpdateMessage = (payload: object) => {
   const data = payload as any
   return data.entry[0].changes[0].value.statuses && data.entry[0].changes[0].value.statuses[0]
 }
+
+export const isIncomingMessage = (payload: object) => {
+  const from = extractDestinyPhone(payload, false)
+  const session = extractSessionPhone(payload)
+  return session && from && session != from
+}
+
+export const extractTypeMessage = (payload: object) => {
+  const data = payload as any
+  return (
+    (
+      data?.entry
+      && data.entry[0]
+      && data.entry[0].changes
+      && data.entry[0].changes[0]
+      && data.entry[0].changes[0].value
+    ) && (
+      data.entry[0].changes[0].value.messages
+      && data.entry[0].changes[0].value.messages[0]
+      && data.entry[0].changes[0].value.messages[0].type
+    )
+  )
+}
+
+export const isAudioMessage = (payload: object) => {
+  return 'audio' == extractTypeMessage(payload)
+}
+
 
 export const isFailedStatus = (payload: object) => {
   const data = payload as any
@@ -589,7 +621,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         if (mediaType == 'pvt') {
           mediaType = mimetype.split('/')[0]
         }
-        message[mediaType] = {
+        message[mediaType] = { 
           caption: binMessage.caption,
           filename,
           mime_type: mimetype,
