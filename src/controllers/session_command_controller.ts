@@ -8,12 +8,12 @@ import logger from '../services/logger'
 
 export class SessionCommandController {
   private getConfig: getConfig
-  private reload: Reload
+  private reloader: Reload
   private logout: Logout
 
   constructor(getConfig: getConfig, reload: Reload, logout: Logout) {
     this.getConfig = getConfig
-    this.reload = reload
+    this.reloader = reload
     this.logout = logout
   }
 
@@ -26,7 +26,7 @@ export class SessionCommandController {
         await axios.post(`${WHATSOMEOW_ADAPTER_BASEURL}/sessions/${phone}/connect`)
         return res.status(204).send()
       }
-      await this.reload.run(phone)
+      await this.reloader.run(phone)
       return res.status(204).send()
     } catch (e) {
       logger.error(e, 'Error on connect session %s', phone)
@@ -60,7 +60,7 @@ export class SessionCommandController {
         await axios.post(`${WHATSOMEOW_ADAPTER_BASEURL}/sessions/${phone}/reload`)
         return res.status(204).send()
       }
-      await this.reload.run(phone)
+      await this.reloader.run(phone)
       return res.status(204).send()
     } catch (e) {
       logger.error(e, 'Error on reload session %s', phone)
