@@ -3300,10 +3300,10 @@
   resolved "https://registry.yarnpkg.com/@unrs/resolver-binding-win32-x64-msvc/-/resolver-binding-win32-x64-msvc-1.11.1.tgz#538b1e103bf8d9864e7b85cc96fa8d6fb6c40777"
   integrity sha512-lrW200hZdbfRtztbygyaq/6jP6AKE8qQN2KvPcJ+x7wiD038YtnYtZ82IMNJ69GJibV7bwL3y9FgK+5w/pYt6g==
 
-"@whiskeysockets/baileys@7.0.0-rc.1":
-  version "7.0.0-rc.1"
-  resolved "https://registry.yarnpkg.com/@whiskeysockets/baileys/-/baileys-7.0.0-rc.1.tgz#4a6b735069015a5a0567905ce42fcdf9d9913aa6"
-  integrity sha512-cuTrOMwIO9bbuB0NetcQI6y9XtMfoKnxnlhPEbwyRL9/EKyWR/RzofRG8tTWmbOcaJnZcep/AoVhAiVXmbp5DA==
+"@whiskeysockets/baileys@7.0.0-rc.2":
+  version "7.0.0-rc.2"
+  resolved "https://registry.yarnpkg.com/@whiskeysockets/baileys/-/baileys-7.0.0-rc.2.tgz#a09ab1e325c8ea93733f48cdb47beee6f7b85ac9"
+  integrity sha512-+ypUNn7pAf+pmwoDNyupTUEt9mLder72JZFmMjdVJntnUBbCVOoEgsBnwkgbtC9SPJXb6YURZfR5fgMb0UmUsg==
   dependencies:
     "@cacheable/node-cache" "^1.4.0"
     "@hapi/boom" "^9.1.3"
