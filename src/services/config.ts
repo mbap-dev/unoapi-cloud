@@ -1,6 +1,6 @@
 import { getStore } from './store'
 import { getStoreFile } from './store_file'
-import { WAMessageKey } from 'baileys'
+import { WAMessageKey, WAVersion } from 'baileys'
 import { Level } from 'pino'
 
 export const configs: Map<string, Config> = new Map()
@@ -25,6 +25,8 @@ export type Webhook = {
   sendGroupMessages: boolean
   sendOutgoingMessages: boolean
   sendNewsletterMessages: boolean
+  sendIncomingMessages: boolean
+  sendTranscribeAudio: boolean
 }
 
 export type WebhookForward = {
@@ -79,6 +81,9 @@ export type Config = {
   qrTimeoutMs: number
   label: string
   overrideWebhooks: boolean
+  customMessageCharacters: string[]
+  customMessageCharactersFunction: (message: string) => string,
+  whatsappVersion: WAVersion | undefined,
 }
 
 export const defaultConfig: Config = {
@@ -121,6 +126,8 @@ export const defaultConfig: Config = {
       sendGroupMessages: true,
       sendOutgoingMessages: true,
       sendUpdateMessages: true,
+      sendIncomingMessages: true,
+      sendTranscribeAudio: false,
     },
   ],
   webhookForward: {},
@@ -139,7 +146,10 @@ export const defaultConfig: Config = {
   useS3: false,
   qrTimeoutMs: 60000,
   label: '',
-  overrideWebhooks: false
+  overrideWebhooks: false,
+  customMessageCharacters: [],
+  customMessageCharactersFunction: (message: string) => message,
+  whatsappVersion: undefined
 }
 
 export interface getConfig {

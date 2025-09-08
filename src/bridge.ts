@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv'
 dotenv.config()
+import process from 'node:process'
 
 import { BindBridgeJob } from './jobs/bind_bridge'
 import { SessionStoreRedis } from './services/session_store_redis'
@@ -29,15 +30,23 @@ import { LogoutBaileys } from './services/logout_baileys'
 import { ReloadJob } from './jobs/reload'
 import { LogoutJob } from './jobs/logout'
 
-const getConfig: getConfig = getConfigRedis
-const outgoingAmqp: Outgoing = new OutgoingAmqp(getConfig)
+const getConfigLocal: getConfig = getConfigRedis
+const outgoingAmqp: Outgoing = new OutgoingAmqp(getConfigLocal)
 const listenerAmqp: Listener = new ListenerAmqp()
 const onNewLogin = onNewLoginGenerateToken(outgoingAmqp)
 const bindJob = new BindBridgeJob()
-const reload = new ReloadBaileys(getClientBaileys, getConfig, listenerAmqp, onNewLogin)
+const reload = new ReloadBaileys(getClientBaileys, getConfigLocal, listenerAmqp, onNewLogin)
 const reloadJob = new ReloadJob(reload)
-const logout = new LogoutBaileys(getClientBaileys, getConfig, listenerAmqp, onNewLogin)
+const logout = new LogoutBaileys(getClientBaileys, getConfigLocal, listenerAmqp, onNewLogin)
 const logoutJob = new LogoutJob(logout)
+
+import * as Sentry from '@sentry/node'
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    sendDefaultPii: true,
+  })
+}
 
 const startBrigde = async () => {
   await startRedis()
@@ -88,7 +97,19 @@ const startBrigde = async () => {
 }
 startBrigde()
 
+process.on('uncaughtException', (reason: any) => {
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(reason)
+  }
+  logger.error('uncaughtException bridge: %s %s', reason, reason.stack)
+  process.exit(1)
+})
+
 process.on('unhandledRejection', (reason: any, promise) => {
-  logger.error('unhandledRejection bridge: %s %s %s', reason, reason.stack, promise)
-  throw reason
+  if (process.env.SENTRY_DSN) {
+    Sentry.captureException(reason)
+  }
+  logger.error('unhandledRejection: %s', reason.stack)
+  logger.error('promise: %s', promise)
+  process.exit(1)
 })

@@ -190,13 +190,13 @@ export const completeCloudApiWebHook = (phone, to: string, message: object) => {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const toBaileysMessageContent = (payload: any): AnyMessageContent => {
+export const toBaileysMessageContent = (payload: any, customMessageCharactersFunction = (m) => m): AnyMessageContent => {
   const { type } = payload
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const response: any = {}
   switch (type) {
     case 'text':
-      response.text = payload.text.body
+      response.text = customMessageCharactersFunction(payload.text.body)
       break
     case 'interactive':
       let listMessage = {}
@@ -262,7 +262,7 @@ export const toBaileysMessageContent = (payload: any): AnyMessageContent => {
           response.mimetype = mimetype
         }
         if (payload[type].caption) {
-          response.caption = payload[type].caption
+          response.caption = customMessageCharactersFunction(payload[type].caption)
         }
         response[type] = { url: link }
         break
@@ -321,6 +321,31 @@ export const isIndividualMessage = (payload: any) => {
   return isIndividualJid(remoteJid)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const getChatAndNumberAndId = (payload: any): [string, string, string] => {
+  const { key: { remoteJid } } = payload
+  if (isIndividualJid(remoteJid)) {
+    return [remoteJid, jidToPhoneNumber(remoteJid), remoteJid]
+  } else {
+    return [remoteJid, ...getNumberAndId(payload)]
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const getNumberAndId = (payload: any): [string, string] => {
+  const {
+    key: { remoteJid, senderPn, participantPn, participant, senderLid, participantLid },
+    participant: participant2,
+    participantPn: participantPn2
+  } = payload
+
+  const value = senderLid || participantLid || participant || participant2 || remoteJid
+  const split = value.split('@')
+  const id = `${split[0].split(':')[0]}@${split[1]}`
+  const phone = jidToPhoneNumber(participantPn || senderPn || participant || participant2 || participantPn2 || remoteJid, '')
+  return [phone, id]
+}
+
 export const formatJid = (jid: string) => {
   const jidSplit = jid.split('@')
   return `${jidSplit[0].split(':')[0]}@${jidSplit[1]}`
@@ -357,9 +382,9 @@ export const extractDestinyPhone = (payload: object, throwError = true) => {
         && data.entry[0].changes[0].value.statuses[0]
         && data.entry[0].changes[0].value.statuses[0].recipient_id?.replace('+', '')
       ) || (
-        data.entry[0].changes[0].value.messsages
-        && data.entry[0].changes[0].value.messsages[0]
-        && data.entry[0].changes[0].value.messsages[0].from?.replace('+', '')
+        data.entry[0].changes[0].value.messages
+        && data.entry[0].changes[0].value.messages[0]
+        && data.entry[0].changes[0].value.messages[0].from?.replace('+', '')
       )
     )
   )
@@ -395,21 +420,59 @@ export const isNewsletterMessage = (payload: object) => {
   return groupId && isJidNewsletter(groupId)
 }
 
-export const isOutgoingMessage = (payload: object) => {
+export const extractSessionPhone  = (payload: object) => {
   const data = payload as any
-  const from = data.entry[0].changes[0].value.messages
-                && data.entry[0].changes[0].value.messages[0]
-                && data.entry[0].changes[0].value.messages[0].from
   const session = data.entry[0].changes[0].value.messages
                 && data.entry[0].changes[0].value.metadata
                 && data.entry[0].changes[0].value.metadata.display_phone_number
-  return session && from && `${session}`.replaceAll('+', '') == `${from}`.replaceAll('+', '')
+
+  return `${(session || '')}`.replaceAll('+', '')
 }
 
+export const isOutgoingMessage = (payload: object) => {
+  const from = extractDestinyPhone(payload, false)
+  const session = extractSessionPhone(payload)
+  return session && from && session == from
+}
 
 export const isUpdateMessage = (payload: object) => {
   const data = payload as any
   return data.entry[0].changes[0].value.statuses && data.entry[0].changes[0].value.statuses[0]
+}
+
+export const isIncomingMessage = (payload: object) => {
+  const from = extractDestinyPhone(payload, false)
+  const session = extractSessionPhone(payload)
+  return session && from && session != from
+}
+
+export const extractTypeMessage = (payload: object) => {
+  const data = payload as any
+  return (
+    (
+      data?.entry
+      && data.entry[0]
+      && data.entry[0].changes
+      && data.entry[0].changes[0]
+      && data.entry[0].changes[0].value
+    ) && (
+      data.entry[0].changes[0].value.messages
+      && data.entry[0].changes[0].value.messages[0]
+      && data.entry[0].changes[0].value.messages[0].type
+    )
+  )
+}
+
+export const isAudioMessage = (payload: object) => {
+  return 'audio' == extractTypeMessage(payload)
+}
+
+
+export const isFailedStatus = (payload: object) => {
+  const data = payload as any
+  return 'failed' == (data.entry[0].changes[0].value.statuses
+                        && data.entry[0].changes[0].value.statuses[0]
+                        && data.entry[0].changes[0].value.statuses[0].status)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -475,16 +538,10 @@ export const jidToPhoneNumberIfUser = (value: any): string => {
  }
 */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const fromBaileysMessageContent = (phone: string, payload: any, config?: Partial<Config>): any => {
+export const fromBaileysMessageContent = (phone: string, payload: any, config?: Partial<Config>): [any, string, string] => {
   try {
-    const {
-      key: { remoteJid, id: whatsappMessageId, participant: participant1, fromMe }, participant: participant2
-    } = payload
-    const participant = participant1 || participant2
-    const chatJid = formatJid(remoteJid)
-    const isIndividual = isIndividualJid(chatJid)
-    const senderJid = isIndividual ? chatJid : (participant && formatJid(participant)) || chatJid
-    const senderPhone = jidToPhoneNumber(senderJid)
+    const { key: { id: whatsappMessageId, fromMe } } = payload
+    const [chatJid, senderPhone, senderId] = getChatAndNumberAndId(payload)
     const messageType = getMessageType(payload)
     const binMessage = payload.update || payload.receipt || (messageType && payload.message && payload.message[messageType])
     let profileName
@@ -563,7 +620,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         if (mediaType == 'pvt') {
           mediaType = mimetype.split('/')[0]
         }
-        message[mediaType] = {
+        message[mediaType] = { 
           caption: binMessage.caption,
           filename,
           mime_type: mimetype,
@@ -617,16 +674,16 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
             conversation: editedBinMessage?.message?.caption
           }
         }
-        return fromBaileysMessageContent(phone, editedMessagePayload)
+        return fromBaileysMessageContent(phone, editedMessagePayload, config)
 
       
       case 'protocolMessage':
         // {"key":{"remoteJid":"351912490567@s.whatsapp.net","fromMe":false,"id":"3EB0C77FBE5C8DACBEC5"},"messageTimestamp":1741714271,"pushName":"Pedro Paiva","broadcast":false,"message":{"protocolMessage":{"key":{"remoteJid":"351211450051@s.whatsapp.net","fromMe":true,"id":"3EB05C0B7B1A0C12284EE0"},"type":"MESSAGE_EDIT","editedMessage":{"conversation":"blablabla2","messageContextInfo":{"messageSecret":"4RYW9eIV1O4j5vjNmY059bZRymJ+B2aTfi9it9+2RxA="}},"timestampMs":"1741714271693"},"messageContextInfo":{"deviceListMetadata":{"senderKeyHash":"UgdPt0CEKvqhyg==","senderTimestamp":"1741018303","senderAccountType":"E2EE","receiverAccountType":"E2EE","recipientKeyHash":"EhuHta8R2tH+8g==","recipientTimestamp":"1740522549"},"deviceListMetadataVersion":2,"messageSecret":"4RYW9eIV1O4j5vjNmY059bZRymJ+B2aTfi9it9+2RxA="}}}
         if (binMessage.editedMessage) {
-          return fromBaileysMessageContent(phone, { ...payload, message: { editedMessage: { message: { protocolMessage: binMessage }}}})
+          return fromBaileysMessageContent(phone, { ...payload, message: { editedMessage: { message: { protocolMessage: binMessage }}}}, config)
         } else {
           logger.debug(`Ignore message type ${messageType}`)
-          return
+          return [null, senderPhone, senderId]
         }
 
       case 'ephemeralMessage':
@@ -640,7 +697,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
           ...payload,
           message: binMessage.message,
         }
-        return fromBaileysMessageContent(phone, changedPayload)
+        return fromBaileysMessageContent(phone, changedPayload, config)
 
       case 'conversation':
       case 'extendedTextMessage':
@@ -708,13 +765,13 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
           change.value.messages.push(message)
           throw new DecryptError(data)
         } else {
-          return
+          return [null, senderPhone, senderId]
         }
 
       case 'update':
         const baileysStatus = payload.status || payload.update.status
         if (!baileysStatus && payload.update.status != 0 && !payload?.update?.messageStubType && !payload?.update?.starred) {
-          return
+          return [null, senderPhone, senderId]
         }
         switch (baileysStatus) {
           case 0:
@@ -778,10 +835,15 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         message.type = 'text'
         break
 
+      case 'statusMentionMessage':
+        break
+
       case 'messageContextInfo':
       case 'senderKeyDistributionMessage':
+      case 'albumMessage':
+      case 'keepInChatMessage':
         logger.debug(`Ignore message type ${messageType}`)
-        return
+        return [null, senderPhone, senderId]
 
       default:
         cloudApiStatus = 'failed'
@@ -862,7 +924,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
       change.value.messages.push(message)
     }
     logger.debug('fromBaileysMessageContent %s => %s', phone, JSON.stringify(data))
-    return data
+    return [data, senderPhone, senderId]
   } catch (e) {
     logger.error(e, 'Error on convert baileys to cloud-api')
     throw e

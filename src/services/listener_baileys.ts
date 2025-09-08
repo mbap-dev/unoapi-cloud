@@ -133,8 +133,8 @@ export class ListenerBaileys implements Listener {
     }
 
     const key = i.key
-    // possible update message
-    if (key?.fromMe && key?.id) {
+    // possible update message or delete message
+    if (key?.id && (key?.fromMe || (!key?.fromMe && ((message as any)?.update?.messageStubType == 1)))) {
       const idUno = await store.dataStore.loadUnoId(key.id)
       logger.debug('Unoapi id %s to Baileys id %s', idUno, key.id)
       if (idUno) {
@@ -169,7 +169,12 @@ export class ListenerBaileys implements Listener {
 
     let data
     try {
-      data = fromBaileysMessageContent(phone, i, config)
+      const resp = fromBaileysMessageContent(phone, i, config)
+      data = resp[0]
+      const senderPhone = resp[1]
+      const senderId = resp[2]
+      const { dataStore } = await config.getStore(phone, config)
+      await dataStore.setJid(senderPhone, senderId)
     } catch (error) {
       if (error instanceof BindTemplateError) {
         const template = new Template(this.getConfig)

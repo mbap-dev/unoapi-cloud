@@ -413,9 +413,19 @@
                                     <input type="checkbox" class="webhook-sendOutgoingMessages">
                                     <span class="slider round"></span>
                                 </label>
+                                <label for="sendIncomingMessages" class="form-label">Enviar Mensagens de Entrada</label>
+                                <label class="switch">
+                                    <input type="checkbox" class="webhook-sendIncomingMessages">
+                                    <span class="slider round"></span>
+                                </label>
                                 <label for="sendUpdateMessages" class="form-label">Enviar Atualização de Mensagens</label>
                                 <label class="switch">
                                     <input type="checkbox" class="webhook-sendUpdateMessages">
+                                    <span class="slider round"></span>
+                                </label>
+                                <label for="sendTranscribeAudio" class="form-label">Enviar Transcrição de Áudio</label>
+                                <label class="switch">
+                                    <input type="checkbox" class="webhook-sendTranscribeAudio">
                                     <span class="slider round"></span>
                                 </label>
                                 <button type="button" class="btn btn-danger btn-sm mt-2 remove-webhook">Remover</button>
@@ -597,9 +607,19 @@
                             <input type="checkbox" class="webhook-sendOutgoingMessages">
                             <span class="slider round"></span>
                         </label>
+                        <label for="sendIncomingMessages" class="form-label">Enviar Mensagens de Entrada</label>
+                        <label class="switch">
+                            <input type="checkbox" class="webhook-sendIncomingMessages">
+                            <span class="slider round"></span>
+                        </label>
                         <label for="sendUpdateMessages" class="form-label">Enviar Atualização de Mensagens</label>
                         <label class="switch">
                             <input type="checkbox" class="webhook-sendUpdateMessages">
+                            <span class="slider round"></span>
+                        </label>
+                        <label for="sendTranscribeAudio" class="form-label">Enviar Transcrição de Áudio</label>
+                        <label class="switch">
+                            <input type="checkbox" class="webhook-sendTranscribeAudio">
                             <span class="slider round"></span>
                         </label>
                         <button type="button" class="btn btn-danger btn-sm mt-2 remove-webhook">Remover</button>
@@ -815,9 +835,19 @@
                                     <input type="checkbox" class="webhook-sendOutgoingMessages" ${webhook.sendOutgoingMessages ? 'checked' : ''}>
                                     <span class="slider round"></span>
                                 </label>
+                                <label for="sendIncomingMessages" class="form-label">Enviar Mensagens de Entrada</label>
+                                <label class="switch">
+                                    <input type="checkbox" class="webhook-sendIncomingMessages" ${webhook.sendIncomingMessages ? 'checked' : ''}>
+                                    <span class="slider round"></span>
+                                </label>
                                 <label for="sendUpdateMessages" class="form-label">Enviar Atualização de Mensagens</label>
                                 <label class="switch">
                                     <input type="checkbox" class="webhook-sendUpdateMessages" ${webhook.sendUpdateMessages ? 'checked' : ''}>
+                                    <span class="slider round"></span>
+                                </label>
+                                <label for="sendTranscribeAudio" class="form-label">Enviar Transcrição de Áudio</label>
+                                <label class="switch">
+                                    <input type="checkbox" class="webhook-sendTranscribeAudio" ${webhook.sendTranscribeAudio ? 'checked' : ''}>
                                     <span class="slider round"></span>
                                 </label>
                                 <button type="button" class="btn btn-danger btn-sm mt-2 remove-webhook">Remover</button>
@@ -869,7 +899,9 @@
                             sendGroupMessages: $(this).find('.webhook-sendGroupMessages').is(':checked'),
                             sendNewsletterMessages: $(this).find('.webhook-sendNewsletterMessages').is(':checked'),
                             sendOutgoingMessages: $(this).find('.webhook-sendOutgoingMessages').is(':checked'),
+                            sendIncomingMessages: $(this).find('.webhook-sendIncomingMessages').is(':checked'),
                             sendUpdateMessages: $(this).find('.webhook-sendUpdateMessages').is(':checked'),
+                            sendTranscribeAudio: $(this).find('.webhook-sendTranscribeAudio').is(':checked'),
                         };
                         sessionData.webhooks.push(webhook);
                     });

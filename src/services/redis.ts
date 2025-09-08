@@ -139,6 +139,10 @@ const connectCountKey = (phone: string, ordinal: number | string) => {
   return `${BASE_KEY}connect-count:${phone}:${ordinal}`
 }
 
+export const lastTimerKey = (from: string, to: string) => {
+  return `${BASE_KEY}timer:${from}:${to}`
+}
+
 export const sessionStatusKey = (phone: string) => {
   return `${BASE_KEY}status:${phone}`
 }
@@ -202,7 +206,7 @@ export const getJid = async (phone: string, jid: any) => {
 
 export const setJid = async (phone: string, jid: string, validJid: string) => {
   const key = jidKey(phone, jid)
-  await client.set(key, validJid, { EX: DATA_JID_TTL })
+  await client.set(key, validJid)
 }
 
 export const setBlacklist = async (from: string, webhookId: string, to: string, ttl: number) => {
@@ -442,6 +446,24 @@ export const getGroup = async (phone: string, jid: string) => {
 export const setGroup = async (phone: string, jid: string, data: GroupMetadata) => {
   const key = groupKey(phone, jid)
   return redisSetAndExpire(key, JSON.stringify(data), DATA_TTL)
+}
+
+export const setLastTimer = async (phone: string, to: string, current: Date) => {
+  const key = lastTimerKey(phone, to)
+  logger.debug('setLastTimer with key %s', key)
+  return redisSet(key, current.toISOString())
+}
+
+export const getLastTimer = async (phone: string, to: string) => {
+  const key = lastTimerKey(phone, to)
+  logger.debug('getLastTimer with key %s', key)
+  return redisGet(key)
+}
+
+export const delLastTimer = async (phone: string, to: string) => {
+  const key = lastTimerKey(phone, to)
+  logger.debug('delLastTimer with key %s', key)
+  return redisDel(key)
 }
 
 export const setMedia = async (phone: string, id: string, payload: any) => {
