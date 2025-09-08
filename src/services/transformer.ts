@@ -326,15 +326,15 @@ export const getChatAndNumberAndId = (payload: any): [string, string, string] =>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getNumberAndId = (payload: any): [string, string] => {
   const {
-    key: { remoteJid, senderPn, participantPn, participant, senderLid, participantLid },
+    key: { remoteJidAlt, remoteJid, senderPn, participantPn, participant, senderLid, participantAlt, participantLid },
     participant: participant2,
     participantPn: participantPn2,
   } = payload
 
-  const value = senderLid || participantLid || participant || participant2 || remoteJid
+  const value = senderLid || participantAlt || participantLid || participant || participant2 || remoteJidAlt || remoteJid
   const split = value.split('@')
   const id = `${split[0].split(':')[0]}@${split[1]}`
-  const phone = jidToPhoneNumber(participantPn || senderPn || participant || participant2 || participantPn2 || remoteJid, '')
+  const phone = jidToPhoneNumber(participantPn || senderPn || participant || participant2 || participantPn2 || remoteJidAlt || remoteJid, '')
   return [phone, id]
 }
 
