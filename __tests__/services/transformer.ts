@@ -17,6 +17,7 @@ import {
   isOutgoingMessage,
   getChatAndNumberAndId,
 } from '../../src/services/transformer'
+import type { Config } from '../../src/services/config'
 const key = { remoteJid: 'XXXX@s.whatsapp.net', id: 'abc' }
 
 const documentMessage: proto.Message.IDocumentMessage = {
@@ -597,6 +598,44 @@ describe('service transformer', () => {
       ],
     }
     expect(fromBaileysMessageContent(phoneNumer, input)[0]).toEqual(output)
+  })
+
+  test('fromBaileysMessageContent with media from provider whatsmeow includes url', async () => {
+    const phoneNumer = '5549998093075'
+    const text = `${new Date().getTime()}`
+    const remotePhoneNumber = `${new Date().getTime()}`
+    const remoteJid = `${remotePhoneNumber}@s.whatsapp.net`
+    const link = `http://localhost/${text}.pdf`
+    const id = `wa.${new Date().getTime()}`
+    const pushName = `Jhon ${new Date().getTime()}`
+    const messageTimestamp = Math.floor(new Date().getTime() / 100).toString()
+    const mimetype = 'application/pdf'
+    const fileSha256 = `fileSha256 ${new Date().getTime()}`
+    const input = {
+      key: {
+        remoteJid,
+        fromMe: false,
+        id,
+      },
+      message: {
+        audioMessage: {
+          fileSha256,
+          caption: text,
+          url: link,
+          mimetype,
+        },
+      },
+      pushName,
+      messageTimestamp,
+    }
+    const server = 'http://uno.test'
+    const config: Partial<Config> = { provider: 'whatsmeow', server }
+    const [data] = fromBaileysMessageContent(phoneNumer, input, config)
+    const expectedUrl = `${server}/v15.0/download/${phoneNumer}/${id}.pdf`
+    const media = data.entry[0].changes[0].value.messages[0].audio
+    expect(media.url).toBe(expectedUrl)
+    expect(media.link).toBe(expectedUrl)
+    expect(media.id).toBe(`${phoneNumer}/${id}`)
   })
 
   test('fromBaileysMessageContent with contact', async () => {

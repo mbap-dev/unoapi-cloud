@@ -608,6 +608,12 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
           // url: binMessage.url && binMessage.url.indexOf('base64') < 0 ? binMessage.url : '',
           id: mediaKey,
         }
+        if (config?.provider === 'whatsmeow' && config?.server) {
+          const filePath = `${phone}/${whatsappMessageId}.${extension}`
+          const downloadUrl = `${config.server}/v15.0/download/${filePath}`
+          message[mediaType].link = downloadUrl
+          message[mediaType].url = downloadUrl
+        }
         message.type = mediaType
         break
 
