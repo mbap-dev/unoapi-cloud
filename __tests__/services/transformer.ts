@@ -17,6 +17,7 @@ import {
   isOutgoingMessage,
   getChatAndNumberAndId,
 } from '../../src/services/transformer'
+import type { Config } from '../../src/services/config'
 const key = { remoteJid: 'XXXX@s.whatsapp.net', id: 'abc' }
 
 const documentMessage: proto.Message.IDocumentMessage = {
@@ -537,7 +538,7 @@ describe('service transformer', () => {
     const text = `${new Date().getTime()}`
     const remotePhoneNumber = `${new Date().getTime()}`
     const remoteJid = `${remotePhoneNumber}@s.whatsapp.net`
-    const link = `http://localhost/${text}.pdf`
+    const link = `data:application/pdf;base64,AAAA`
     const id = `wa.${new Date().getTime()}`
     const pushName = `Jhon ${new Date().getTime()}`
     const messageTimestamp = Math.floor(new Date().getTime() / 100).toString()
@@ -598,6 +599,40 @@ describe('service transformer', () => {
     }
     expect(fromBaileysMessageContent(phoneNumer, input)[0]).toEqual(output)
   })
+
+  test('fromBaileysMessageContent with sticker from provider whatsmeow', async () => {
+    const phoneNumer = '5549998093075'
+    const remotePhoneNumber = `${new Date().getTime()}`
+    const remoteJid = `${remotePhoneNumber}@s.whatsapp.net`
+    const id = `wa.${new Date().getTime()}`
+    const messageTimestamp = Math.floor(new Date().getTime() / 100).toString()
+    const mimetype = 'image/webp'
+    const fileSha256 = `fileSha256 ${new Date().getTime()}`
+    const input = {
+      key: {
+        remoteJid,
+        fromMe: false,
+        id,
+      },
+      message: {
+        stickerMessage: {
+          fileSha256,
+          mimetype,
+          url: 'data:image/webp;base64,AAAA',
+        },
+      },
+      pushName: 'Test',
+      messageTimestamp,
+    }
+    const config: Partial<Config> = { provider: 'whatsmeow' }
+    const [data] = fromBaileysMessageContent(phoneNumer, input, config)
+    const media = data.entry[0].changes[0].value.messages[0].sticker
+    expect(media.filename).toBe(`${id}.webp`)
+    expect(media.id).toBe(`${phoneNumer}/${id}`)
+    expect(media.url).toBeUndefined()
+    expect(media.link).toBeUndefined()
+  })
+
 
   test('fromBaileysMessageContent with contact', async () => {
     const phoneNumer = '5549998093075'
