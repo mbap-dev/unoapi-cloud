@@ -72,7 +72,7 @@ export type Config = {
   sendProfilePicture: boolean
   authToken: string | undefined
   authHeader: string | undefined
-  provider: 'baileys' | 'forwarder' | undefined
+  provider: 'baileys' | 'whatsmeow' | 'forwarder' | undefined
   server: string | undefined
   connectionType: connectionType
   wavoipToken: string | undefined
@@ -138,7 +138,7 @@ export const defaultConfig: Config = {
   proxyUrl: undefined,
   authToken: undefined,
   authHeader: undefined,
-  provider: undefined,
+  provider: 'baileys',
   server: undefined,
   connectionType: 'qrcode',
   wavoipToken: '',

@@ -20,6 +20,25 @@ export class WebhookController {
     logger.debug('webhook whatsapp body %s', JSON.stringify(req.body))
     const { phone } = req.params
     await this.service.send(phone, req.body)
+
+    try {
+      const config = await this.getConfig(phone)
+      if (config.provider === 'whatsmeow' && Array.isArray(req.body?.messages)) {
+        const store = await config.getStore(phone, config)
+        const { dataStore } = store
+        for (const message of req.body.messages) {
+          const type = message.type
+          const media = type && message[type]
+          if (media?.id) {
+            const payload = { messaging_product: 'whatsapp', ...media }
+            await dataStore.setMediaPayload(message.id, payload)
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to save media payload: %s', (error as Error).message)
+    }
+
     res.status(200).send(`{"success": true}`)
   }
 
