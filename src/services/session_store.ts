@@ -8,6 +8,7 @@ const retries: Map<string, number> = new Map<string, number>()
 
 export abstract class SessionStore {
   abstract getPhones(): Promise<string[]>
+  abstract getTokens(phone: string): Promise<string[]>
 
   async getStatus(phone: string) {
     return statuses.get(phone) || 'disconnected'

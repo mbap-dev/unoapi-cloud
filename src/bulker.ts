@@ -21,7 +21,7 @@ import { getConfig } from './services/config'
 import { getConfigRedis } from './services/config_redis'
 import { Incoming } from './services/incoming'
 import logger from './services/logger'
-import { isInBlacklistInRedis } from './services/blacklist'
+import { addToBlacklistRedis, isInBlacklistInRedis } from './services/blacklist'
 import { version } from '../package.json'
 
 import * as Sentry from '@sentry/node'
@@ -35,7 +35,8 @@ if (process.env.SENTRY_DSN) {
 const getConfigLocal: getConfig = getConfigRedis
 const incomingAmqp: Incoming = new IncomingAmqp(getConfigLocal)
 
-const outgoingCloudApi: Outgoing = new OutgoingCloudApi(getConfigLocal, isInBlacklistInRedis)
+
+const outgoingCloudApi: Outgoing = new OutgoingCloudApi(getConfigLocal, isInBlacklistInRedis, addToBlacklistRedis)
 const commanderJob = new CommanderJob(outgoingCloudApi, getConfigRedis)
 const bulkParserJob = new BulkParserJob(outgoingCloudApi, getConfigRedis)
 const bulkSenderJob = new BulkSenderJob(incomingAmqp, outgoingCloudApi)

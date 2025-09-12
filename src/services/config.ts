@@ -27,6 +27,7 @@ export type Webhook = {
   sendNewsletterMessages: boolean
   sendIncomingMessages: boolean
   sendTranscribeAudio: boolean
+  addToBlackListOnOutgoingMessageWithTtl: number | undefined
 }
 
 export type WebhookForward = {
@@ -82,8 +83,11 @@ export type Config = {
   label: string
   overrideWebhooks: boolean
   customMessageCharacters: string[]
-  customMessageCharactersFunction: (message: string) => string
-  whatsappVersion: WAVersion | undefined
+  customMessageCharactersFunction: (message: string) => string,
+  whatsappVersion: WAVersion | undefined,
+  openaiApiKey: string | undefined
+  openaiApiTranscribeModel: string | undefined
+  openaiAssistantId: string | undefined
 }
 
 export const defaultConfig: Config = {
@@ -128,6 +132,7 @@ export const defaultConfig: Config = {
       sendUpdateMessages: true,
       sendIncomingMessages: true,
       sendTranscribeAudio: false,
+      addToBlackListOnOutgoingMessageWithTtl: undefined
     },
   ],
   webhookForward: {},
@@ -150,6 +155,9 @@ export const defaultConfig: Config = {
   customMessageCharacters: [],
   customMessageCharactersFunction: (message: string) => message,
   whatsappVersion: undefined,
+  openaiApiKey: undefined,
+  openaiApiTranscribeModel: undefined,
+  openaiAssistantId: undefined
 }
 
 export interface getConfig {
