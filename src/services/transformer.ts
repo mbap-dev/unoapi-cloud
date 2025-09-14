@@ -1,4 +1,4 @@
-import { AnyMessageContent, WAMessage, isJidNewsletter, isLidUser, isPnUser, normalizeMessageContent, proto } from '@whiskeysockets/baileys'
+import { AnyMessageContent, WAMessage, isJidNewsletter, isPnUser, isLidUser, normalizeMessageContent, proto } from '@whiskeysockets/baileys'
 import mime from 'mime-types'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import vCard from 'vcf'
@@ -67,8 +67,6 @@ const OTHER_MESSAGES_TO_PROCESS = [
   'senderKeyDistributionMessage',
   'messageContextInfo',
   'messageStubType',
-  'keepInChatMessage',
-  'pollUpdateMessage',
 ]
 
 export const getMimetype = (payload: any) => {
@@ -121,9 +119,9 @@ export const getMessageType = (payload: any) => {
     return 'receipt'
   } else if (payload.message) {
     const { message } = payload
-    return TYPE_MESSAGES_TO_READ.find((t) => message[t]) || 
-            OTHER_MESSAGES_TO_PROCESS.find((t) => message[t]) || 
-            Object.keys(payload.message)[0]
+    return TYPE_MESSAGES_TO_READ.find((t) => message[t]) ||
+      OTHER_MESSAGES_TO_PROCESS.find((t) => message[t]) ||
+      Object.keys(payload.message)[0]
   } else if (payload.messageStubType) {
     return 'messageStubType'
   }
@@ -145,16 +143,16 @@ export const getBinMessage = (waMessage: WAMessage): { messageType: string; mess
 }
 
 export const getNormalizedMessage = (waMessage: WAMessage): WAMessage | undefined => {
-  const bin = getBinMessage(waMessage)
-  if (!bin) return
-
-  let { message } = bin
-  if (message?.protocolMessage?.editedMessage) {
-    message = message.protocolMessage.editedMessage
-  } else if (message?.editedMessage) {
-    message = message.editedMessage
+  const binMessage = getBinMessage(waMessage)
+  if (binMessage) {
+    let { message } = binMessage
+    if (message.editedMessage) {
+      message = message.protocolMessage?.editedMessage
+    }else if (message.protocolMessage?.editedMessage) {
+      message = message.protocolMessage?.editedMessage
+    }
+    return { key: waMessage.key, message: { [binMessage.messageType]: message } }
   }
-  return { key: waMessage.key, message: { [bin.messageType]: message } }
 }
 
 export const completeCloudApiWebHook = (phone, to: string, message: object) => {
@@ -279,10 +277,10 @@ export const toBaileysMessageContent = (payload: any, customMessageCharactersFun
         const waid = phone['wa_id']
         const number = phone['phone']
         const vcard = 'BEGIN:VCARD\n'
-              + 'VERSION:3.0\n'
-              + `N:${contacName}\n`
-              + `TEL;type=CELL;type=VOICE;waid=${waid}:${number}\n`
-              + 'END:VCARD'
+          + 'VERSION:3.0\n'
+          + `N:${contacName}\n`
+          + `TEL;type=CELL;type=VOICE;waid=${waid}:${number}\n`
+          + 'END:VCARD'
         contacts.push({ vcard })
       }
       const displayName = contact['phones'].length > 1 ? `${contact['phones'].length} contacts` : contacName
@@ -310,7 +308,7 @@ export const phoneNumberToJid = (phoneNumber: string) => {
 }
 
 export const isIndividualJid = (jid: string) => {
-  const isIndividual = isPnUser(jid) || isLidUser(jid) || jid.indexOf('@') < 0
+  const isIndividual = isPnUser(jid) || jid.indexOf('@') < 0
   logger.debug('jid %s is individual? %s', jid, isIndividual)
   return isIndividual
 }
@@ -333,31 +331,18 @@ export const getChatAndNumberAndId = (payload: any): [string, string, string] =>
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getNumberAndId = (payload: any): [string, string] => {
   const {
-    key: {
-      remoteJidAlt, remoteJid,
-      senderPn, participantPn,
-      participant, participantAlt,
-      senderLid, participantLid
-    },
+    key: { remoteJidAlt, remoteJid, senderPn, participantPn, participant, senderLid, participantAlt, participantLid },
     participant: participant2,
     participantPn: participantPn2
   } = payload
 
-  // id “estável/normalizado”
-  const idSource =
-    participantAlt || senderLid || participantLid ||
-    remoteJidAlt || participant || participant2 || remoteJid
-  const [local, domain] = (idSource ?? '').split('@')
-  const id = `${(local ?? '').split(':')[0]}@${domain ?? 's.whatsapp.net'}`
-
-  // phone “humano”
-  const phoneJid =
-    senderPn || participantPn || participantPn2 ||
-    remoteJidAlt || remoteJid || participant || participant2
-  const phone = jidToPhoneNumber(phoneJid, '')
-
+  const value = senderLid || participantAlt || participantLid || participant || participant2 || remoteJidAlt || remoteJid
+  const split = value.split('@')
+  const id = `${split[0].split(':')[0]}@${split[1]}`
+  const phone = jidToPhoneNumber(participantPn || senderPn || participant || participant2 || participantPn2 || remoteJidAlt || remoteJid, '')
   return [phone, id]
 }
 
@@ -412,18 +397,18 @@ export const extractDestinyPhone = (payload: object, throwError = true) => {
 export const getGroupId = (payload: object) => {
   const data = payload as any
   return (
-      data.entry
-      && data.entry[0]
-      && data.entry[0].changes
-      && data.entry[0].changes[0]
-      && data.entry[0].changes[0].value
-    ) && (
-      (
-        data.entry[0].changes[0].value.contacts
-        && data.entry[0].changes[0].value.contacts[0]
-        && data.entry[0].changes[0].value.contacts[0].group_id
-      )
+    data.entry
+    && data.entry[0]
+    && data.entry[0].changes
+    && data.entry[0].changes[0]
+    && data.entry[0].changes[0].value
+  ) && (
+    (
+      data.entry[0].changes[0].value.contacts
+      && data.entry[0].changes[0].value.contacts[0]
+      && data.entry[0].changes[0].value.contacts[0].group_id
     )
+  )
 }
 
 export const isGroupMessage = (payload: object) => {
@@ -438,8 +423,8 @@ export const isNewsletterMessage = (payload: object) => {
 export const extractSessionPhone  = (payload: object) => {
   const data = payload as any
   const session = data.entry[0].changes[0].value.messages
-                && data.entry[0].changes[0].value.metadata
-                && data.entry[0].changes[0].value.metadata.display_phone_number
+    && data.entry[0].changes[0].value.metadata
+    && data.entry[0].changes[0].value.metadata.display_phone_number
 
   return `${(session || '')}`.replaceAll('+', '')
 }
@@ -486,33 +471,32 @@ export const isAudioMessage = (payload: object) => {
 export const isFailedStatus = (payload: object) => {
   const data = payload as any
   return 'failed' == (data.entry[0].changes[0].value.statuses
-                        && data.entry[0].changes[0].value.statuses[0]
-                        && data.entry[0].changes[0].value.statuses[0].status)
+    && data.entry[0].changes[0].value.statuses[0]
+    && data.entry[0].changes[0].value.statuses[0].status)
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const jidToPhoneNumber = (value: any, plus = '+', retry = true): string => {
-  if (!value) return ''
-  if (isLidUser(value) || isJidNewsletter(value)) return value
-
-  const raw = String(value)
-  const number = raw.split('@')[0].split(':')[0].replace('+', '')
-  if (!number) return ''
-
+  if (isLidUser(value) || isJidNewsletter(value)) {
+    return value
+  }
+  const number = (value || '').split('@')[0].split(':')[0].replace('+', '')
   const country = number.substring(0, 2)
-  if (country === '55') {
+  if (country == '55') {
     const isValid = isValidPhoneNumber(`+${number}`, true)
     if (!isValid && number.length < 13 && retry) {
       const prefix = number.substring(2, 4)
-      const digits = (number.match(/.{8}$/) || [''])[0]
-      const out = `${plus}${country}${prefix}9${digits}`.replace('+', '')
-      return jidToPhoneNumber(out, plus, false)
+      const digits = number.match('.{8}$')[0]
+      const digit = '9'
+      const out = `${plus}${country}${prefix}${digit}${digits}`.replace('+', '')
+      return jidToPhoneNumber(`${plus}${out}`, plus, false)
     }
   }
-  return `${plus}${number}`
+  return `${plus}${number.replace('+', '')}`
 }
 
 export const jidToPhoneNumberIfUser = (value: any): string => {
-  return isIndividualJid(value) ? jidToPhoneNumber(value, '') : value 
+  return isIndividualJid(value) ? jidToPhoneNumber(value, '') : value
 }
 
 /*
@@ -636,7 +620,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         if (mediaType == 'pvt') {
           mediaType = mimetype.split('/')[0]
         }
-        message[mediaType] = { 
+        message[mediaType] = {
           caption: binMessage.caption,
           filename,
           mime_type: mimetype,
@@ -692,7 +676,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         }
         return fromBaileysMessageContent(phone, editedMessagePayload, config)
 
-      
+
       case 'protocolMessage':
         // {"key":{"remoteJid":"351912490567@s.whatsapp.net","fromMe":false,"id":"3EB0C77FBE5C8DACBEC5"},"messageTimestamp":1741714271,"pushName":"Pedro Paiva","broadcast":false,"message":{"protocolMessage":{"key":{"remoteJid":"351211450051@s.whatsapp.net","fromMe":true,"id":"3EB05C0B7B1A0C12284EE0"},"type":"MESSAGE_EDIT","editedMessage":{"conversation":"blablabla2","messageContextInfo":{"messageSecret":"4RYW9eIV1O4j5vjNmY059bZRymJ+B2aTfi9it9+2RxA="}},"timestampMs":"1741714271693"},"messageContextInfo":{"deviceListMetadata":{"senderKeyHash":"UgdPt0CEKvqhyg==","senderTimestamp":"1741018303","senderAccountType":"E2EE","receiverAccountType":"E2EE","recipientKeyHash":"EhuHta8R2tH+8g==","recipientTimestamp":"1740522549"},"deviceListMetadataVersion":2,"messageSecret":"4RYW9eIV1O4j5vjNmY059bZRymJ+B2aTfi9it9+2RxA="}}}
         if (binMessage.editedMessage) {
@@ -770,10 +754,10 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
 
       case 'messageStubType':
         MESSAGE_STUB_TYPE_ERRORS
-        if (payload.messageStubType == 2 && 
-            payload.messageStubParameters &&
-            payload.messageStubParameters[0] &&
-            MESSAGE_STUB_TYPE_ERRORS.includes(payload.messageStubParameters[0].toLowerCase())) {
+        if (payload.messageStubType == 2 &&
+          payload.messageStubParameters &&
+          payload.messageStubParameters[0] &&
+          MESSAGE_STUB_TYPE_ERRORS.includes(payload.messageStubParameters[0].toLowerCase())) {
           message.text = {
             body: MESSAGE_CHECK_WAAPP || t('failed_decrypt'),
           }

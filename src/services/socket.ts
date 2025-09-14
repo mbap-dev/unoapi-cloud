@@ -13,7 +13,7 @@ import makeWASocket, {
   ConnectionState,
   UserFacingSocketConfig,
   fetchLatestWaWebVersion,
-} from 'baileys'
+} from '@whiskeysockets/baileys'
 import MAIN_LOGGER from 'baileys/lib/Utils/logger'
 import { Config, defaultConfig } from './config'
 import { Store } from './store'

@@ -1,4 +1,4 @@
-import { fetchLatestWaWebVersion, WAVersion } from 'baileys'
+import { fetchLatestWaWebVersion, WAVersion } from '@whiskeysockets/baileys'
 import { release } from 'os'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

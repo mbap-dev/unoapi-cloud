@@ -1,6 +1,6 @@
-jest.mock('baileys')
+jest.mock('@whiskeysockets/baileys')
 import { OnDisconnected, OnQrCode, OnReconnect, OnNotification, connect } from '../../src/services/socket'
-import makeWASocket, { WASocket, WAVersion } from 'baileys'
+import makeWASocket, { WASocket, WAVersion } from '@whiskeysockets/baileys'
 import { mock } from 'jest-mock-extended'
 import { Store } from '../../src/services/store'
 import { defaultConfig } from '../../src/services/config'
