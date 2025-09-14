@@ -1,4 +1,4 @@
-import { AnyMessageContent, WAMessage, isJidNewsletter, isJidUser, isLidUser, normalizeMessageContent, proto } from 'baileys'
+import { AnyMessageContent, WAMessage, isJidNewsletter, isLidUser, isPnUser, normalizeMessageContent, proto } from '@whiskeysockets/baileys'
 import mime from 'mime-types'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import vCard from 'vcf'
@@ -67,6 +67,8 @@ const OTHER_MESSAGES_TO_PROCESS = [
   'senderKeyDistributionMessage',
   'messageContextInfo',
   'messageStubType',
+  'keepInChatMessage',
+  'pollUpdateMessage',
 ]
 
 export const getMimetype = (payload: any) => {
@@ -143,16 +145,16 @@ export const getBinMessage = (waMessage: WAMessage): { messageType: string; mess
 }
 
 export const getNormalizedMessage = (waMessage: WAMessage): WAMessage | undefined => {
-  const binMessage = getBinMessage(waMessage)
-  if (binMessage) {
-    let { message } = binMessage
-    if (message.editedMessage) {
-      message = message.protocolMessage?.editedMessage
-    }else if (message.protocolMessage?.editedMessage) {
-      message = message.protocolMessage?.editedMessage
-    }
-    return { key: waMessage.key, message: { [binMessage.messageType]: message } }
+  const bin = getBinMessage(waMessage)
+  if (!bin) return
+
+  let { message } = bin
+  if (message?.protocolMessage?.editedMessage) {
+    message = message.protocolMessage.editedMessage
+  } else if (message?.editedMessage) {
+    message = message.editedMessage
   }
+  return { key: waMessage.key, message: { [bin.messageType]: message } }
 }
 
 export const completeCloudApiWebHook = (phone, to: string, message: object) => {
@@ -308,7 +310,7 @@ export const phoneNumberToJid = (phoneNumber: string) => {
 }
 
 export const isIndividualJid = (jid: string) => {
-  const isIndividual = isJidUser(jid) || jid.indexOf('@') < 0
+  const isIndividual = isPnUser(jid) || isLidUser(jid) || jid.indexOf('@') < 0
   logger.debug('jid %s is individual? %s', jid, isIndividual)
   return isIndividual
 }
@@ -331,18 +333,31 @@ export const getChatAndNumberAndId = (payload: any): [string, string, string] =>
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getNumberAndId = (payload: any): [string, string] => {
   const {
-    key: { remoteJidAlt, remoteJid, senderPn, participantPn, participant, senderLid, participantAlt, participantLid },
+    key: {
+      remoteJidAlt, remoteJid,
+      senderPn, participantPn,
+      participant, participantAlt,
+      senderLid, participantLid
+    },
     participant: participant2,
     participantPn: participantPn2
   } = payload
 
-  const value = senderLid || participantAlt || participantLid || participant || participant2 || remoteJidAlt || remoteJid
-  const split = value.split('@')
-  const id = `${split[0].split(':')[0]}@${split[1]}`
-  const phone = jidToPhoneNumber(participantPn || senderPn || participant || participant2 || participantPn2 || remoteJidAlt || remoteJid, '')
+  // id “estável/normalizado”
+  const idSource =
+    participantAlt || senderLid || participantLid ||
+    remoteJidAlt || participant || participant2 || remoteJid
+  const [local, domain] = (idSource ?? '').split('@')
+  const id = `${(local ?? '').split(':')[0]}@${domain ?? 's.whatsapp.net'}`
+
+  // phone “humano”
+  const phoneJid =
+    senderPn || participantPn || participantPn2 ||
+    remoteJidAlt || remoteJid || participant || participant2
+  const phone = jidToPhoneNumber(phoneJid, '')
+
   return [phone, id]
 }
 
@@ -475,24 +490,25 @@ export const isFailedStatus = (payload: object) => {
                         && data.entry[0].changes[0].value.statuses[0].status)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const jidToPhoneNumber = (value: any, plus = '+', retry = true): string => {
-  if (isLidUser(value) || isJidNewsletter(value)) {
-    return value
-  }
-  const number = (value || '').split('@')[0].split(':')[0].replace('+', '')
+  if (!value) return ''
+  if (isLidUser(value) || isJidNewsletter(value)) return value
+
+  const raw = String(value)
+  const number = raw.split('@')[0].split(':')[0].replace('+', '')
+  if (!number) return ''
+
   const country = number.substring(0, 2)
-  if (country == '55') {
+  if (country === '55') {
     const isValid = isValidPhoneNumber(`+${number}`, true)
     if (!isValid && number.length < 13 && retry) {
       const prefix = number.substring(2, 4)
-      const digits = number.match('.{8}$')[0]
-      const digit = '9'
-      const out = `${plus}${country}${prefix}${digit}${digits}`.replace('+', '')
-      return jidToPhoneNumber(`${plus}${out}`, plus, false)
+      const digits = (number.match(/.{8}$/) || [''])[0]
+      const out = `${plus}${country}${prefix}9${digits}`.replace('+', '')
+      return jidToPhoneNumber(out, plus, false)
     }
   }
-  return `${plus}${number.replace('+', '')}`
+  return `${plus}${number}`
 }
 
 export const jidToPhoneNumberIfUser = (value: any): string => {

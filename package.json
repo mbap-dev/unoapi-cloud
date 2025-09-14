@@ -82,7 +82,7 @@
     "@google-cloud/text-to-speech": "^5.2.0",
     "@redis/client": "^1.5.14",
     "@sentry/node": "^9.29.0",
-    "@whiskeysockets/baileys": "7.0.0-rc.2",
+    "@whiskeysockets/baileys": "7.0.0-rc.3",
     "amqplib": "^0.10.9",
     "audio2textjs": "^1.0.5",
     "awesome-phonenumber": "^6.8.0",
