@@ -544,6 +544,7 @@ describe('service transformer', () => {
     const messageTimestamp = Math.floor(new Date().getTime() / 100).toString()
     const mimetype = 'application/pdf'
     const fileSha256 = `fileSha256 ${new Date().getTime()}`
+    const fileSha256Out = Buffer.from(fileSha256).toString('base64')
     const filename = `${id}.pdf`
     const input = {
       key: {
@@ -581,7 +582,7 @@ describe('service transformer', () => {
                       caption: text,
                       mime_type: mimetype,
                       id: `${phoneNumer}/${id}`,
-                      sha256: fileSha256,
+                      sha256: fileSha256Out,
                       filename,
                     },
                     type: 'audio',

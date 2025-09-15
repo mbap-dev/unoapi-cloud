@@ -964,4 +964,15 @@ export const fromBaileysMessageContent = (
     logger.error(e, 'Error on convert baileys to cloud-api')
     throw e
   }
-}
+ }
+ 
+  export const toBuffer = (obj) =>  {
+    if (obj && typeof obj === 'object' && !Buffer.isBuffer(obj)) {
+      const values = Object.values(obj);
+      if (values.every(v => typeof v === 'number')) {
+        return Buffer.from(values as number[]);
+      }
+    }
+    return obj;
+  }
+  
