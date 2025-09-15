@@ -665,10 +665,17 @@ export const fromBaileysMessageContent = (
           mime_type: mimetype || 'application/octet-stream',
         }
         if (binMessage?.caption) media.caption = binMessage.caption
-        // Inclua apenas se existir de verdade (não mande undefined)
-        if (binMessage?.fileSha256) media.sha256 = binMessage.fileSha256
-        if (binMessage?.fileEncSha256) media.enc_sha256 = binMessage.fileEncSha256
-        if (binMessage?.mediaKey) media.media_key = binMessage.mediaKey
+        
+        if (binMessage?.fileSha256) {
+          media.sha256 = Buffer.from(binMessage.fileSha256).toString('base64');
+        }
+        if (binMessage?.fileEncSha256) {
+          media.enc_sha256 = Buffer.from(binMessage.fileEncSha256).toString('base64');
+        }
+        if (binMessage?.mediaKey) {
+          media.media_key = Buffer.from(binMessage.mediaKey).toString('base64');
+        }
+
         if (binMessage?.ptt === true) media.ptt = true
         if (typeof binMessage?.seconds === 'number') media.seconds = binMessage.seconds
 
@@ -957,13 +964,4 @@ export const fromBaileysMessageContent = (
     logger.error(e, 'Error on convert baileys to cloud-api')
     throw e
   }
-}
-
-export const toBuffer = (arrayBuffer) => {
-  const buffer = Buffer.alloc(arrayBuffer.byteLength)
-  const view = new Uint8Array(arrayBuffer)
-  for (let i = 0; i < buffer.length; ++i) {
-    buffer[i] = view[i]
-  }
-  return buffer
 }
