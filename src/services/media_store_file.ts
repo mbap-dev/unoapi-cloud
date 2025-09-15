@@ -46,12 +46,10 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
     await mediaStore.saveMediaBuffer(filePath, buffer)
     logger.debug('Saved buffer %s!', filePath)
     const mediaId = `${phone}/${message.id}`
-    // "type"=>"audio", "audio"=>{"mime_type"=>"audio/ogg; codecs=opus", "sha256"=>"HgQo1XoLPSCGlIQYu7eukl4ty1yIu2kAWvoKgqLCnu4=", "id"=>"642476532090165", "voice"=>true}}]
     const payload = {
       messaging_product: 'whatsapp',
       mime_type: message[message.type].mime_type,
       sha256: message[message.type].sha256,
-      // file_size: binMessage?.message?.fileLength,
       id: mediaId,
       filename: message[message.type].filename || filePath,
     }
@@ -70,10 +68,23 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
   }
 
   mediaStore.saveMedia = async (waMessage: WAMessage) => {
+    const messageContent = waMessage.message?.imageMessage ||
+      waMessage.message?.videoMessage ||
+      waMessage.message?.audioMessage ||
+      waMessage.message?.documentMessage ||
+      waMessage.message?.stickerMessage ||
+      waMessage.message?.ptvMessage;
+
+    if (messageContent) {
+      messageContent.mediaKey = toBuffer(messageContent.mediaKey);
+      messageContent.fileSha256 = toBuffer(messageContent.fileSha256);
+      messageContent.fileEncSha256 = toBuffer(messageContent.fileEncSha256);
+    }
+
     let buffer
     const binMessage = getBinMessage(waMessage)
     const url = binMessage?.message?.url
-    if (url.indexOf('base64') >= 0) {
+    if (url && url.indexOf('base64') >= 0) {
       const parts = url.split(',')
       const base64 = parts[1]
       buffer = Buffer.from(base64, 'base64')
@@ -104,7 +115,7 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
     const parts = filePath.split('/')
     const dir: string = parts.splice(0, parts.length - 1).join('/')
     if (!existsSync(dir)) {
-      mkdirSync(dir)
+      mkdirSync(dir, { recursive: true })
     }
     await writeFile(filePath, content)
     return true
@@ -176,7 +187,7 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
         mkdirSync(base, { recursive: true })
       }
       const response: FetchResponse = await fetch(contact.imgUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'GET'})
-      const buffer = toBuffer(await response.arrayBuffer())
+      const buffer = Buffer.from(await response.arrayBuffer())
       await writeFile(complete, buffer)
       logger.debug('Saved profile picture file %s!!', phoneNumber)
     }

@@ -1,5 +1,5 @@
 import { Contact } from '@whiskeysockets/baileys'
-import { jidToPhoneNumberIfUser, toBuffer } from './transformer'
+import { jidToPhoneNumberIfUser } from './transformer' // Removido 'toBuffer' pois não é necessário aqui
 import { UNOAPI_QUEUE_MEDIA, DATA_TTL, FETCH_TIMEOUT_MS, DATA_URL_TTL, UNOAPI_EXCHANGE_BROKER_NAME } from '../defaults'
 import { mediaStores, MediaStore, getMediaStore } from './media_store'
 import { getDataStore } from './data_store'
@@ -90,7 +90,7 @@ export const mediaStoreS3 = (phone: string, config: Config, getDataStore: getDat
     logger.debug(`Downloaded media ${file}!`)
     return response.Body as Readable
   }
- 
+
   mediaStore.getProfilePictureUrl = async (_baseUrl: string, jid: string) => {
     const phoneNumber = jidToPhoneNumberIfUser(jid)
     const fileName = `${phone}/${PROFILE_PICTURE_FOLDER}/${profilePictureFileName(phoneNumber)}`
@@ -115,7 +115,7 @@ export const mediaStoreS3 = (phone: string, config: Config, getDataStore: getDat
     } else if (contact.imgUrl) {
       logger.debug('Saving profile picture s3 %s...', phoneNumber)
       const response: FetchResponse = await fetch(contact.imgUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'GET'})
-      const buffer = toBuffer(await response.arrayBuffer())
+      const buffer = Buffer.from(await response.arrayBuffer())
       await mediaStore.saveMediaBuffer(fileName, buffer)
       logger.debug('Saved profile picture s3 %s!', phoneNumber)
     }
