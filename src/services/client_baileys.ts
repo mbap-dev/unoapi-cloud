@@ -802,7 +802,7 @@ export class ClientBaileys implements Client {
         logger.debug(groupMetadata, 'Retrieved group metadata!')
       } else {
         groupMetadata = {
-          owner_country_code: '55',
+          // owner_country_code: '55',
           addressingMode: isLidUser(key.remoteJid) ? 'lid' : 'pn',
           id: key.remoteJid,
           owner: '',
@@ -810,7 +810,7 @@ export class ClientBaileys implements Client {
           participants: [],
         }
       }
-      message['groupMetadata'] = groupMetadata
+      message['groupMetadata'] = groupMetadata!
       logger.debug(`Retrieving group profile picture...`)
       try {
         const profilePictureGroup = await this.fetchImageUrl(key.remoteJid)

@@ -1,10 +1,10 @@
-import { AnyMessageContent, WAMessage, isJidNewsletter, isJidUser, isLidUser, normalizeMessageContent, proto } from 'baileys'
+import { AnyMessageContent, WAMessageContent, WAMessage, isJidNewsletter, isJidUser, isLidUser, proto } from 'baileys'
 import mime from 'mime-types'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import vCard from 'vcf'
 import logger from './logger'
 import { Config } from './config'
-import { MESSAGE_CHECK_WAAPP } from '../defaults'
+import { MESSAGE_CHECK_WAAPP, SEND_AUDIO_MESSAGE_AS_PTT } from '../defaults'
 import { t } from '../i18n'
 
 export const TYPE_MESSAGES_TO_PROCESS_FILE = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage', 'ptvMessage']
@@ -133,6 +133,21 @@ export const isSaveMedia = (message: WAMessage) => {
   return messageType && TYPE_MESSAGES_TO_PROCESS_FILE.includes(messageType)
 }
 
+export const normalizeMessageContent = (
+  content: WAMessageContent | null | undefined
+): WAMessageContent | undefined => {
+  content =
+    content?.ephemeralMessage?.message?.viewOnceMessage?.message ||
+    content?.ephemeralMessage?.message ||
+    content?.viewOnceMessage?.message ||
+    content?.viewOnceMessageV2Extension?.message ||
+    content?.viewOnceMessageV2?.message ||
+		content?.documentWithCaptionMessage?.message ||
+    content ||
+    undefined;
+  return content;
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getBinMessage = (waMessage: WAMessage): { messageType: string; message: any } | undefined => {
   const message: proto.IMessage | undefined = normalizeMessageContent(waMessage.message)
@@ -148,7 +163,7 @@ export const getNormalizedMessage = (waMessage: WAMessage): WAMessage | undefine
     let { message } = binMessage
     if (message.editedMessage) {
       message = message.protocolMessage?.editedMessage
-    }else if (message.protocolMessage?.editedMessage) {
+    } else if (message.protocolMessage?.editedMessage) {
       message = message.protocolMessage?.editedMessage
     }
     return { key: waMessage.key, message: { [binMessage.messageType]: message } }
@@ -252,7 +267,7 @@ export const toBaileysMessageContent = (payload: any, customMessageCharactersFun
       const link = payload[type].link
       if (link) {
         let mimetype: string = getMimetype(payload)
-        if (type == 'audio') {
+        if (type == 'audio' && SEND_AUDIO_MESSAGE_AS_PTT) {
           response.ptt = true
         }
         if (payload[type].filename) {
@@ -382,13 +397,25 @@ export const extractDestinyPhone = (payload: object, throwError = true) => {
         data.entry[0].changes[0].value.statuses
         && data.entry[0].changes[0].value.statuses[0]
         && data.entry[0].changes[0].value.statuses[0].recipient_id?.replace('+', '')
-      ) || (
-        data.entry[0].changes[0].value.messages
-        && data.entry[0].changes[0].value.messages[0]
-        && data.entry[0].changes[0].value.messages[0].from?.replace('+', '')
       )
     )
   )
+  if (!number && throwError) {
+    throw Error(`error on get phone number from ${JSON.stringify(payload)}`)
+  }
+  return number
+}
+export const extractFromPhone = (payload: object, throwError = true) => {
+  const data = payload as any
+  const number =
+    data?.entry
+    && data.entry[0]
+    && data.entry[0].changes
+    && data.entry[0].changes[0]
+    && data.entry[0].changes[0].value
+    && data.entry[0].changes[0].value.messages
+    && data.entry[0].changes[0].value.messages[0]
+    && data.entry[0].changes[0].value.messages[0].from?.replace('+', '')
   if (!number && throwError) {
     throw Error(`error on get phone number from ${JSON.stringify(payload)}`)
   }
@@ -434,7 +461,7 @@ export const extractSessionPhone  = (payload: object) => {
 }
 
 export const isOutgoingMessage = (payload: object) => {
-  const from = extractDestinyPhone(payload, false)
+  const from = extractFromPhone(payload, false)
   const session = extractSessionPhone(payload)
   return session && from && session == from
 }
@@ -445,9 +472,7 @@ export const isUpdateMessage = (payload: object) => {
 }
 
 export const isIncomingMessage = (payload: object) => {
-  const from = extractDestinyPhone(payload, false)
-  const session = extractSessionPhone(payload)
-  return session && from && session != from
+  return !isOutgoingMessage(payload)
 }
 
 export const extractTypeMessage = (payload: object) => {

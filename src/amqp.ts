@@ -1,4 +1,4 @@
-import { connect, Connection, Channel, Queue, Options, ConsumeMessage, abc } from 'amqplib'
+import { connect, Connection, Channel, Replies, ChannelModel, Options, ConsumeMessage } from 'amqplib'
 import {
   AMQP_URL,
   UNOAPI_X_COUNT_RETRIES,
@@ -14,7 +14,7 @@ import {
   UNOAPI_SERVER_NAME,
   UNOAPI_EXCHANGE_BROKER_NAME,
   UNOAPI_EXCHANGE_BRIDGE_NAME,
-  IGNORED_TO_NUMBERS,
+  IGNORED_TO_NUMBERS
 } from './defaults'
 import logger from './services/logger'
 import { version } from '../package.json'
@@ -22,8 +22,14 @@ import { extractDestinyPhone } from './services/transformer'
 
 const withTimeout = (millis, error, promise) => {
   let timeoutPid
-  const timeout = new Promise((_resolve, reject) => (timeoutPid = setTimeout(() => reject(error), millis)))
-  return Promise.race([promise, timeout]).finally(() => {
+  const timeout = new Promise((_resolve, reject) =>
+    timeoutPid = setTimeout(
+      () => reject(error),
+      millis))
+  return Promise.race([
+    promise,
+    timeout
+  ]).finally(() => {
     if (timeoutPid) {
       clearTimeout(timeoutPid)
     }
@@ -35,11 +41,12 @@ export const queueDelayedName = (queue: string) => `${queue}.delayed`
 
 let amqpConnection: Connection | undefined
 let amqpChannel: Channel | undefined
+let amqpChannelModel: ChannelModel | undefined
 
 type QueueObject = {
-  queueMain: Queue
-  queueDead: Queue
-  queueDelayed: Queue
+  queueMain: Replies.AssertQueue
+  queueDead: Replies.AssertQueue
+  queueDelayed: Replies.AssertQueue
 }
 const exchanges = new Map<string, boolean>()
 const queues = new Map<string, QueueObject>()
@@ -81,7 +88,8 @@ export interface ConsumeCallback {
 export const amqpConnect = async (amqpUrl = AMQP_URL) => {
   if (!amqpConnection) {
     logger.info(`Connecting RabbitMQ at ${amqpUrl}...`)
-    amqpConnection = await connect(amqpUrl)
+    amqpChannelModel = await connect(amqpUrl)
+    amqpConnection = amqpChannelModel.connection
   } else {
     logger.info(`Already connected RabbitMQ!`)
   }
@@ -100,14 +108,14 @@ export const amqpConnect = async (amqpUrl = AMQP_URL) => {
 
 export const amqpDisconnect = async (connection: Connection) => {
   logger.debug('Disconnecting RabbitMQ')
-  return connection.close()
+  return amqpChannelModel?.close()
 }
 
 export const amqpGetChannel = async () => {
   if (!amqpChannel) {
     logger.info('Creating channel...')
-    const connection = await amqpConnect()
-    amqpChannel = await connection.createChannel()
+    await amqpConnect()
+    amqpChannel = await amqpChannelModel?.createChannel()
     logger.info('Created channel!')
   }
   return amqpChannel
@@ -117,19 +125,16 @@ export const amqpGetExchange = async (exchange: string, type: ExchagenType, pref
   if (!exchanges.get(exchange)) {
     logger.info('Creating exchange %s...', exchange)
     const channel = await amqpGetChannel()
-    await channel.prefetch(prefetch)
-    await channel.assertExchange(exchange, type, { durable: true, arguments: { 'x-max-priority': 5 } })
+    await channel?.prefetch(prefetch)
+    await channel?.assertExchange(exchange, type, { durable: true,  arguments: { 'x-max-priority': 5 }})
 
     const exchangeDeadId = queueDeadName(exchange)
-    await amqpChannel.assertExchange(exchangeDeadId, 'topic', { durable: true })
+    await amqpChannel?.assertExchange(exchangeDeadId, 'topic', { durable: true })
 
     const exchangeDelayedId = queueDelayedName(exchange)
-    await amqpChannel.assertExchange(exchangeDelayedId, 'topic', {
-      durable: true,
-      arguments: {
-        'x-dead-letter-exchange': exchange,
-      },
-    })
+    await amqpChannel?.assertExchange(exchangeDelayedId, 'topic', { durable: true , arguments: {
+      'x-dead-letter-exchange': exchange
+    }})
     logger.info('Created exchange %s!', exchange)
     exchanges.set(exchange, true)
   }
@@ -156,30 +161,27 @@ export const amqpGetQueue = async (
     priority: 0,
     notifyFailedMessages: NOTIFY_FAILED_MESSAGES,
     type: 'topic',
-    prefetch: 1,
+    prefetch: 1
   },
 ): Promise<QueueObject> => {
   if (!queues.get(queue)) {
     await amqpGetExchange(exchange, options.type!, options.prefetch!)
     const channel = await amqpGetChannel()
     logger.info('Creating queue %s...', queue)
-    const queueMain = await channel.assertQueue(queue, { durable: true })
+    const queueMain = await channel?.assertQueue(queue, { durable: true })!
     let deadLetterExchange = exchange
 
     const queueDeadId = queueDeadName(queue)
     const exchangeDeadId = queueDeadName(exchange)
-    const queueDead = await channel.assertQueue(queueDeadId, { durable: true })
-    await amqpChannel.bindQueue(queueDeadId, exchangeDeadId, `${queueDeadId}.*`)
+    const queueDead = await channel?.assertQueue(queueDeadId, { durable: true })!
+    await amqpChannel?.bindQueue(queueDeadId, exchangeDeadId, `${queueDeadId}.*`)
 
     const exchangeDelayedId = queueDelayedName(exchange)
     const queueDelayedId = queueDelayedName(queue)
-    const queueDelayed = await amqpChannel.assertQueue(queueDelayedId, {
-      durable: true,
-      arguments: {
-        'x-dead-letter-exchange': deadLetterExchange,
-      },
-    })
-    await amqpChannel.bindQueue(queueDelayedId, exchangeDelayedId, `${queueDelayedId}.*`)
+    const queueDelayed = await amqpChannel?.assertQueue(queueDelayedId, { durable: true, arguments: {
+      'x-dead-letter-exchange': deadLetterExchange
+    }})!
+    await amqpChannel?.bindQueue(queueDelayedId, exchangeDelayedId, `${queueDelayedId}.*`)
 
     queues.set(queue, { queueMain, queueDead, queueDelayed })
     logger.info('Created queue %s!', queue)
@@ -208,12 +210,12 @@ export const amqpPublish = async (
   queue: string,
   routingKey: string,
   payload: object,
-  options: Partial<PublishOption> = {
+  options: Partial<PublishOption> = { 
     delay: 0,
     dead: false,
     maxRetries: UNOAPI_MESSAGE_RETRY_LIMIT,
     countRetries: 0,
-    priority: 0,
+    priority: 0
   },
 ) => {
   validateRoutingKey(routingKey)
@@ -246,13 +248,13 @@ export const amqpPublish = async (
     exchangeUsed = queueDeadName(exchange)
   }
   const destiny = bindingKey(queueUsed.queue, routingKey)
-  await channel.publish(exchangeUsed, destiny, Buffer.from(JSON.stringify(payload)), properties)
+  await channel?.publish(exchangeUsed, destiny, Buffer.from(JSON.stringify(payload)), properties)
   logger.debug(
     'Published at exchange %s, with binding key: %s, payload: %s, properties: %s',
     exchangeUsed,
     destiny,
     JSON.stringify(payload),
-    JSON.stringify(properties),
+    JSON.stringify(properties)
   )
 }
 
@@ -262,9 +264,9 @@ export const amqpConsume = async (
   routingKey: string,
   callback: ConsumeCallback,
   options: Partial<CreateOption> = {
-    delay: UNOAPI_MESSAGE_RETRY_DELAY,
+    delay: UNOAPI_MESSAGE_RETRY_DELAY, 
     priority: 0,
-    notifyFailedMessages: NOTIFY_FAILED_MESSAGES,
+    notifyFailedMessages: NOTIFY_FAILED_MESSAGES
   },
 ) => {
   logger.debug('Configurate to consume exchange: %s, queue: %s, routing key: %s and type: %s', exchange, queue, routingKey, options.type)
@@ -283,13 +285,7 @@ export const amqpConsume = async (
     const maxRetries = parseInt(headers[UNOAPI_X_MAX_RETRIES] || UNOAPI_MESSAGE_RETRY_LIMIT)
     const countRetries = parseInt(headers[UNOAPI_X_COUNT_RETRIES] || '0') + 1
     try {
-      logger.debug(
-        'Received in queue %s, with routing key: %s, with message: %s with headers: %s',
-        queue,
-        routingKey,
-        content,
-        JSON.stringify(payload.properties.headers),
-      )
+      logger.debug('Received in queue %s, with routing key: %s, with message: %s with headers: %s', queue, routingKey, content, JSON.stringify(payload.properties.headers))
       if (IGNORED_CONNECTIONS_NUMBERS.includes(routingKey)) {
         logger.info(`Ignore messages from ${routingKey}`)
       } else if (IGNORED_TO_NUMBERS.length > 0 && IGNORED_TO_NUMBERS.includes(extractDestinyPhone(data.payload, false))) {
@@ -299,7 +295,7 @@ export const amqpConsume = async (
         await withTimeout(CONSUMER_TIMEOUT_MS, timeoutError, callback(routingKey, data, { countRetries, maxRetries }))
       }
       logger.debug('Ack message!')
-      await channel.ack(payload)
+      await channel?.ack(payload)
     } catch (error) {
       logger.error(error, 'Error on consume %s', queue)
       if (countRetries >= maxRetries) {
@@ -315,9 +311,8 @@ export const amqpConsume = async (
                 to: routingKey,
                 type: 'text',
                 text: {
-                  body: `Unoapi version ${version} message failed in queue ${queue}\n\nstack trace: ${error.stack}\n\n\nerror: ${
-                    error.message
-                  }\n\ndata: ${JSON.stringify(data, undefined, 2)}`,
+                  body: `Unoapi version ${version} message failed in queue ${queue}\n\nstack trace: ${error.stack}\n\n\nerror: ${error.message
+                    }\n\ndata: ${JSON.stringify(data, undefined, 2)}`,
                 },
               },
             },
@@ -330,20 +325,20 @@ export const amqpConsume = async (
         logger.info('Publish retry %s of %s', countRetries, maxRetries)
         await amqpPublish(exchange, queue, routingKey, data, { delay: 60000, maxRetries, countRetries, type: options.type })
       }
-      await channel.ack(payload)
+      await channel?.ack(payload)
     }
   }
 
   const bindingKey = await bindQueue(channel, exchange, queue, routingKey)
   const bindingKeyDelayed = await bindQueue(channel, exchange, queue, routingKey, true)
 
-  channel.on('close', () => {
+  channel?.on('close', () => {
     channel.unbindQueue(queue, exchange, bindingKey)
     channel.unbindQueue(queue, exchange, bindingKeyDelayed)
   })
   if (!consumers.get(queue)) {
     consumers.set(queue, true)
-    channel.consume(queue, fn)
+    channel?.consume(queue, fn)
   }
   logger.info('Waiting for message in queue %s with binding key %s', queue, bindingKey)
 }

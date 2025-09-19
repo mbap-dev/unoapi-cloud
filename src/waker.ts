@@ -2,13 +2,14 @@ import dotenv from 'dotenv'
 dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || '.env' })
 
 import {
+  AMQP_URL,
   UNOAPI_EXCHANGE_BRIDGE_NAME,
   UNOAPI_EXCHANGE_BROKER_NAME,
   UNOAPI_QUEUE_INCOMING,
   UNOAPI_QUEUE_LISTENER,
   UNOAPI_QUEUE_OUTGOING,
 } from './defaults'
-import { Channel, ConsumeMessage } from 'amqplib'
+import { Channel, connect, ConsumeMessage } from 'amqplib'
 
 import * as Sentry from '@sentry/node'
 if (process.env.SENTRY_DSN) {
@@ -19,7 +20,7 @@ if (process.env.SENTRY_DSN) {
 }
 
 import logger from './services/logger'
-import { queueDeadName, amqpConnect, amqpPublish, extractRoutingKeyFromBindingKey, ExchagenType } from './amqp'
+import { queueDeadName, amqpPublish, extractRoutingKeyFromBindingKey } from './amqp'
 
 logger.info('Starting with waker...')
 
@@ -28,7 +29,7 @@ const bridgeQueues = [UNOAPI_QUEUE_LISTENER, UNOAPI_QUEUE_INCOMING]
 
 const queues = bridgeQueues.concat(brokerQueues)
 
-const getExchangeName = (queue) => {
+const getExchangeName = queue => {
   if (bridgeQueues.includes(queue)) {
     return UNOAPI_EXCHANGE_BRIDGE_NAME
   } else if (brokerQueues.includes(queue)) {
@@ -38,29 +39,32 @@ const getExchangeName = (queue) => {
   }
 }
 
-;(async () => {
+(async () => {
   return Promise.all(
-    queues.map(async (queue) => {
-      const connection = await amqpConnect()
+    queues.map(async queue => {
+      const amqpChannelModel = await connect(AMQP_URL)
       const queueName = queueDeadName(queue)
-      const exchangeName = queueDeadName(getExchangeName(queue))
-      const exchangeType = 'topic'
+      const exchangeName = getExchangeName(queue)
+      const exchangeType = exchangeName == UNOAPI_EXCHANGE_BRIDGE_NAME ? 'direct' : 'topic'
       logger.info('Waker exchange %s queue %s type %s', exchangeName, queueName, exchangeType)
-      const channel: Channel = await connection.createChannel()
+      const channel: Channel = await amqpChannelModel?.createChannel()
       await channel.assertExchange(exchangeName, exchangeType, { durable: true })
       await channel.assertQueue(queueName, { durable: true })
-      await channel.bindQueue(queueName, exchangeName)
+      await channel.bindQueue(queueName, exchangeName, '*')
       channel.consume(queueName, async (payload: ConsumeMessage | null) => {
         if (!payload) {
           throw 'payload not be null'
         }
-        await amqpPublish(exchangeName, queue, extractRoutingKeyFromBindingKey(payload.fields.routingKey), JSON.parse(payload.content.toString()), {
-          type: exchangeType,
-        })
+        await amqpPublish(
+          exchangeName, 
+          queue, 
+          extractRoutingKeyFromBindingKey(payload.fields.routingKey),
+          JSON.parse(payload.content.toString()),
+          { type: exchangeType }
+        )
         return channel.ack(payload)
       })
-      await channel.unbindQueue(queueName, exchangeName)
-    }),
+    })
   )
 })()
 
