@@ -12,6 +12,7 @@
   "connection_timed_out": "Connecting %s timed out %s ms, change to disconnect",
   "connecting": "Connecting...",
   "connected": "Connected with %s using Whatsapp Version v%s, latest Baileys version is v%s at %s",
+  "connected_with_latest": "Connected with %s using latest Whatsapp version v%s at %s",
   "removed": "The session is removed in Whatsapp App, send a message here to reconnect!",
   "unique": "The session must be unique, close connection, send a message here to reconnect if him was offline!",
   "closed": "The connection is closed with status: %s, detail: %s!",

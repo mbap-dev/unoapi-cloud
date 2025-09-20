@@ -237,8 +237,11 @@ export const connect = async ({
     status.attempt = 1
     await sessionStore.setStatus(phone, 'online')
     logger.info(`${phone} connected`)
-    const { version } = await fetchLatestBaileysVersion()
-    const message = t('connected', phone, whatsappVersion ? whatsappVersion.join('.') : 'auto', version.join('.'), new Date().toUTCString())
+    const { version, isLatest } = await fetchLatestBaileysVersion()
+    const message = isLatest ?
+      t('connected_with_latest', phone,  version.join('.'), new Date().toUTCString())
+      : t('connected', phone, version.join('.'), version.join('.'), new Date().toUTCString())
+    
     await onNotification(message, false)
   }
 
