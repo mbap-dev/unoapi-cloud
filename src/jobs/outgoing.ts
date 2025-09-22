@@ -212,6 +212,9 @@ export class OutgoingJob {
           )
         }
       }
+      // If this is a status/receipt payload, optionally delay to ensure
+      // related media messages are delivered first to the webhook consumer.
+      await sleep(2000)
       await this.service.sendHttp(phone, a.webhook, payload, {})
     }
   }
