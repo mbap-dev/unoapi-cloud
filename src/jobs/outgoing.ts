@@ -140,14 +140,14 @@ export class OutgoingJob {
           )
         }
       } else if (config.provider == 'whatsmeow') {
-        // Handle incoming media using Baileys download/decrypt with Baileys-like payload
+        // Handle media using Baileys download/decrypt when payload comes with
+        // directPath/mediaKey (camelCase or snake_case), regardless of direction.
         const store = await config.getStore(phone, config)
         const { dataStore, mediaStore } = store
-        const isIncoming = isIncomingMessage(payload)
         if (!isUpdateMessage(payload)) {
           payload.entry[0].changes[0].value.messages = await Promise.all(
             payload.entry[0].changes[0].value.messages.map(async message => {
-              if (TYPE_MESSAGES_MEDIA.includes(message.type) && isIncoming) {
+              if (TYPE_MESSAGES_MEDIA.includes(message.type)) {
                 const media = message[message.type] || {}
                 // Try both camelCase and snake_case keys
                 let mediaKey = media.mediaKey || media.media_key
