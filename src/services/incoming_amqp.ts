@@ -1,7 +1,7 @@
 import { Incoming } from './incoming'
 import { amqpGetChannel } from '../amqp'
 import { v1 as uuid } from 'uuid'
-import { jidToPhoneNumber } from './transformer'
+import { jidToPhoneNumber, getGroupId } from './transformer'
 import { getConfig } from './config'
 
 const EXCHANGE = 'unoapi.outgoing'
@@ -31,7 +31,15 @@ export class IncomingAmqp implements Incoming {
 
   public async send(phone: string, payload: object, options: object = {}) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { status, type, to } = payload as any
+    const pl: any = { ...payload }
+    // Fallback: if "to" is blank, try to extract group id from Chatwoot payload
+    if (!pl?.to || `${pl.to}`.trim() === '') {
+      const gid = getGroupId(pl)
+      if (gid && typeof gid === 'string') {
+        pl.to = gid
+      }
+    }
+    const { status, type, to } = pl as any
     const config = await this.getConfig(phone)
     const provider = config.provider || 'baileys'
     await initExchange()
@@ -40,7 +48,7 @@ export class IncomingAmqp implements Incoming {
     if (status) {
       options['type'] = 'direct'
       options['priority'] = 3 // update status is always middle important
-      const data = { payload, options }
+      const data = { payload: pl, options }
       channel.publish(EXCHANGE, routingKey, Buffer.from(JSON.stringify(data)), {
         contentType: 'application/json',
         messageId: (payload as any).message_id,
@@ -52,7 +60,7 @@ export class IncomingAmqp implements Incoming {
       if (!options['priority']) {
         options['priority'] = 5 // send message without bulk is very important
       }
-      const data = { payload, id, options }
+      const data = { payload: pl, id, options }
       channel.publish(EXCHANGE, routingKey, Buffer.from(JSON.stringify(data)), {
         contentType: 'application/json',
         messageId: id,
@@ -62,7 +70,7 @@ export class IncomingAmqp implements Incoming {
         messaging_product: 'whatsapp',
         contacts: [
           {
-            wa_id: jidToPhoneNumber(to, ''),
+            wa_id: jidToPhoneNumber(pl.to, ''),
           },
         ],
         messages: [
@@ -73,7 +81,7 @@ export class IncomingAmqp implements Incoming {
       }
       return { ok }
     } else {
-      throw `Unknown incoming message ${JSON.stringify(payload)}`
+      throw `Unknown incoming message ${JSON.stringify(pl)}`
     }
   }
 }
