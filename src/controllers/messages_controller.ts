@@ -37,6 +37,7 @@ import { Response as ResponseUno } from '../services/response'
 import { Incoming } from '../services/incoming'
 import { Outgoing } from '../services/outgoing'
 import logger from '../services/logger'
+import { getGroupId } from '../services/transformer'
 
 export class MessagesController {
   protected endpoint = 'messages'
@@ -54,8 +55,16 @@ export class MessagesController {
     logger.debug('%s params %s', this.endpoint, JSON.stringify(req.params))
     logger.debug('%s body %s', this.endpoint, JSON.stringify(req.body))
     const { phone } = req.params
-    const payload: object = req.body
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = { ...req.body }
     try {
+      // Fallback: if "to" is empty, try transformer.getGroupId(payload)
+      if (!payload?.to || `${payload.to}`.trim() === '') {
+        const groupId = getGroupId(payload)
+        if (groupId && typeof groupId === 'string') {
+          payload.to = groupId
+        }
+      }
       const response: ResponseUno = await this.incoming.send(phone, payload, { endpoint: this.endpoint })
       logger.debug('%s response %s', this.endpoint, JSON.stringify(response.ok))
       await res.status(200).json(response.ok)
