@@ -54,8 +54,38 @@ export class MessagesController {
     logger.debug('%s params %s', this.endpoint, JSON.stringify(req.params))
     logger.debug('%s body %s', this.endpoint, JSON.stringify(req.body))
     const { phone } = req.params
-    const payload: object = req.body
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = { ...req.body }
     try {
+      // Minimal fallback: if "to" is empty, try contacts[].group_id (Chatwoot)
+      if (!payload?.to || `${payload.to}`.trim() === '') {
+        const contacts = payload?.contacts
+        const findGroupId = (source: unknown): string | undefined => {
+          if (!source) return undefined
+          if (Array.isArray(source)) {
+            for (const item of source) {
+              const r = findGroupId(item)
+              if (r) return r
+            }
+            return undefined
+          }
+          if (typeof source === 'object') {
+            const obj = source as Record<string, unknown>
+            if (typeof obj.group_id === 'string' && obj.group_id.includes('@g.us')) {
+              return obj.group_id
+            }
+            for (const v of Object.values(obj)) {
+              const r = findGroupId(v)
+              if (r) return r
+            }
+          }
+          return undefined
+        }
+        const groupId = findGroupId(contacts)
+        if (groupId) {
+          payload.to = groupId
+        }
+      }
       const response: ResponseUno = await this.incoming.send(phone, payload, { endpoint: this.endpoint })
       logger.debug('%s response %s', this.endpoint, JSON.stringify(response.ok))
       await res.status(200).json(response.ok)
