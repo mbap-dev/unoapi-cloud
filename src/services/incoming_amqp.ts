@@ -15,10 +15,10 @@ const initExchange = async () => {
   await channel.assertExchange(EXCHANGE, 'topic', { durable: true })
   await channel.assertQueue('outgoing.baileys', { durable: true })
   await channel.bindQueue('outgoing.baileys', EXCHANGE, 'provider.baileys.*')
-  await channel.assertQueue('outgoing.baileys.dlq', { durable: true })
-  await channel.assertQueue('outgoing.whatsmeow', { durable: true, exclusive: false })
+  await channel.assertQueue('outgoing.baileys.dlq', EXCHANGE, { durable: true })
+  await channel.assertQueue('outgoing.whatsmeow', EXCHANGE, { durable: true, exclusive: false })
   await channel.bindQueue('outgoing.whatsmeow', EXCHANGE, 'provider.whatsmeow.*')
-  await channel.assertQueue('outgoing.whatsmeow.dlq', { durable: true, exclusive: false })
+  await channel.assertQueue('outgoing.whatsmeow.dlq', EXCHANGE, { durable: true, exclusive: false })
   initialized = true
 }
 
