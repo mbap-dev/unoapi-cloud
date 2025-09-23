@@ -39,9 +39,9 @@ const withTimeout = (millis, error, promise) => {
 export const queueDeadName = (queue: string) => `${queue}.dead`
 export const queueDelayedName = (queue: string) => `${queue}.delayed`
 
-let amqpConnection: Connection | undefined
-let amqpChannel: Channel | undefined
 let amqpChannelModel: ChannelModel | undefined
+let amqpChannel: Channel | undefined
+let amqpConnection: Connection | undefined
 
 type QueueObject = {
   queueMain: Replies.AssertQueue
@@ -65,14 +65,14 @@ const validateFormatNumber = (v: string) => {
 }
 const validateRoutingKey = VALIDATE_ROUTING_KEY ? validateFormatNumber : (_) => _
 
-export type ExchagenType = 'direct' | 'topic'
+export type ExchangeType = 'direct' | 'topic'
 
 export type CreateOption = {
   delay: number
   priority: number
   notifyFailedMessages: boolean
   prefetch: number
-  type: ExchagenType
+  type: ExchangeType
 }
 
 export type PublishOption = CreateOption & {
@@ -86,7 +86,7 @@ export interface ConsumeCallback {
 }
 
 export const amqpConnect = async (amqpUrl = AMQP_URL) => {
-  if (!amqpConnection) {
+  if (!amqpChannelModel) {
     logger.info(`Connecting RabbitMQ at ${amqpUrl}...`)
     amqpChannelModel = await connect(amqpUrl)
     amqpConnection = amqpChannelModel.connection
@@ -94,19 +94,19 @@ export const amqpConnect = async (amqpUrl = AMQP_URL) => {
     logger.info(`Already connected RabbitMQ!`)
   }
 
-  amqpConnection.on('error', (err) => {
+  amqpChannelModel.on('error', (err) => {
     logger.error(err, 'Connection Error')
-    amqpConnection = undefined
+    amqpChannelModel = undefined
   })
-  amqpConnection.on('close', (err) => {
+  amqpChannelModel.on('close', (err) => {
     logger.error(err, 'Connection Closed')
-    amqpConnection = undefined
+    amqpChannelModel = undefined
   })
 
-  return amqpConnection
+  return amqpChannelModel
 }
 
-export const amqpDisconnect = async (connection: Connection) => {
+export const amqpDisconnect = async (amqpChannelModel: ChannelModel) => {
   logger.debug('Disconnecting RabbitMQ')
   return amqpChannelModel?.close()
 }
@@ -121,7 +121,7 @@ export const amqpGetChannel = async () => {
   return amqpChannel
 }
 
-export const amqpGetExchange = async (exchange: string, type: ExchagenType, prefetch: number) => {
+export const amqpGetExchange = async (exchange: string, type: ExchangeType, prefetch: number) => {
   if (!exchanges.get(exchange)) {
     logger.info('Creating exchange %s...', exchange)
     const channel = await amqpGetChannel()
@@ -187,6 +187,7 @@ export const amqpGetQueue = async (
     logger.info('Created queue %s!', queue)
   }
 
+
   validateRoutingKey(routingKey)
   if (/^\d+$/.test(routingKey) && !routes.get(routingKey)) {
     await amqpPublish(UNOAPI_EXCHANGE_BRIDGE_NAME, `${UNOAPI_QUEUE_BIND}.${UNOAPI_SERVER_NAME}`, '', { routingKey }, { type: 'direct' })
@@ -195,7 +196,8 @@ export const amqpGetQueue = async (
   return queues.get(queue)!
 }
 
-const getExchangeType = (exchange): ExchagenType => {
+
+const getExchangeType = (exchange): ExchangeType => {
   if (UNOAPI_EXCHANGE_BRIDGE_NAME == exchange) {
     return 'direct'
   } else if (UNOAPI_EXCHANGE_BROKER_NAME == exchange) {

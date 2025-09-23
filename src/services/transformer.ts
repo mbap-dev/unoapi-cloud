@@ -113,7 +113,9 @@ export const getMimetype = (payload: any) => {
 export const getMessageType = (payload: any) => {
   if (payload.update) {
     return 'update'
-  } else if (payload.status && ![2, '2', 'SERVER_ACK'].includes(payload.status) && !payload.key.fromMe) {
+  // } else if (payload.status && ![2, '2', 'SERVER_ACK'].includes(payload.status) && !payload.key.fromMe) {
+  // && [1, '1', 'PENDING', '2', 'SERVER_ACK', 3, '3', 'DELIVERY_ACK'].includes(payload.status)
+  } else if (payload.status) {
     return 'update'
   } else if (payload.receipt) {
     return 'receipt'
@@ -181,8 +183,8 @@ export const completeCloudApiWebHook = (phone, to: string, message: object) => {
             value: {
               messaging_product: 'whatsapp',
               metadata: {
-                display_phone_number: phone,
-                phone_number_id: phone,
+                display_phone_number: phone.replace('+', ''),
+                phone_number_id: phone.replace('+', ''),
               },
               messages: [message],
               contacts: [
@@ -323,7 +325,7 @@ export const phoneNumberToJid = (phoneNumber: string) => {
 }
 
 export const isIndividualJid = (jid: string) => {
-  const isIndividual = isJidUser(jid) || jid.indexOf('@') < 0
+  const isIndividual = jid.endsWith('@s.whatsapp.net') || jid.indexOf('@') < 0
   logger.debug('jid %s is individual? %s', jid, isIndividual)
   return isIndividual
 }
@@ -600,8 +602,8 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
       value: {
         messaging_product: 'whatsapp',
         metadata: {
-          display_phone_number: phone,
-          phone_number_id: phone,
+          display_phone_number: phone.replace('+', ''),
+          phone_number_id: phone.replace('+', ''),
         },
         messages,
         contacts: [
@@ -784,7 +786,6 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         break
 
       case 'messageStubType':
-        MESSAGE_STUB_TYPE_ERRORS
         if (payload.messageStubType == 2 && 
             payload.messageStubParameters &&
             payload.messageStubParameters[0] &&
