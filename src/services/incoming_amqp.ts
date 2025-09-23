@@ -12,13 +12,13 @@ const initExchange = async () => {
     return
   }
   const channel = await amqpGetChannel()
-  await channel.assertExchange(EXCHANGE, 'topic', { durable: true })
-  await channel.assertQueue('outgoing.baileys', { durable: true })
-  await channel.bindQueue('outgoing.baileys', EXCHANGE, 'provider.baileys.*')
-  await channel.assertQueue('outgoing.baileys.dlq', EXCHANGE, { durable: true })
-  await channel.assertQueue('outgoing.whatsmeow', EXCHANGE, { durable: true, exclusive: false })
-  await channel.bindQueue('outgoing.whatsmeow', EXCHANGE, 'provider.whatsmeow.*')
-  await channel.assertQueue('outgoing.whatsmeow.dlq', EXCHANGE, { durable: true, exclusive: false })
+  await channel?.assertExchange(EXCHANGE, 'topic', { durable: true })
+  await channel?.assertQueue('outgoing.baileys', { durable: true })
+  await channel?.bindQueue('outgoing.baileys', EXCHANGE, 'provider.baileys.*')
+  await channel?.assertQueue('outgoing.baileys.dlq', { durable: true })
+  await channel?.assertQueue('outgoing.whatsmeow', { durable: true, exclusive: false })
+  await channel?.bindQueue('outgoing.whatsmeow', EXCHANGE, 'provider.whatsmeow.*')
+  await channel?.assertQueue('outgoing.whatsmeow.dlq', { durable: true, exclusive: false })
   initialized = true
 }
 
@@ -49,7 +49,7 @@ export class IncomingAmqp implements Incoming {
       options['type'] = 'direct'
       options['priority'] = 3 // update status is always middle important
       const data = { payload: pl, options }
-      channel.publish(EXCHANGE, routingKey, Buffer.from(JSON.stringify(data)), {
+      channel?.publish(EXCHANGE, routingKey, Buffer.from(JSON.stringify(data)), {
         contentType: 'application/json',
         messageId: (payload as any).message_id,
         persistent: true,
@@ -61,7 +61,7 @@ export class IncomingAmqp implements Incoming {
         options['priority'] = 5 // send message without bulk is very important
       }
       const data = { payload: pl, id, options }
-      channel.publish(EXCHANGE, routingKey, Buffer.from(JSON.stringify(data)), {
+      channel?.publish(EXCHANGE, routingKey, Buffer.from(JSON.stringify(data)), {
         contentType: 'application/json',
         messageId: id,
         persistent: true,

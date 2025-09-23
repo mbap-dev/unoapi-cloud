@@ -163,12 +163,12 @@ if (process.env.AMQP_URL) {
   // Consume provider-specific outgoing messages for Baileys sessions
   ;(async () => {
     const channel = await amqpGetChannel()
-    await channel.assertExchange('unoapi.outgoing', 'topic', { durable: true })
-    await channel.assertQueue('outgoing.baileys', { durable: true })
-    await channel.bindQueue('outgoing.baileys', 'unoapi.outgoing', 'provider.baileys.*')
+    await channel?.assertExchange('unoapi.outgoing', 'topic', { durable: true })
+    await channel?.assertQueue('outgoing.baileys', { durable: true })
+    await channel?.bindQueue('outgoing.baileys', 'unoapi.outgoing', 'provider.baileys.*')
     const incomingBaileysWorker = new IncomingBaileys(listener, getConfigVar, getClientBaileys, onNewLoginn)
     const providerJob = new IncomingJob(incomingBaileysWorker, outgoing, getConfigVar)
-    channel.consume('outgoing.baileys', async (payload) => {
+    channel?.consume('outgoing.baileys', async (payload) => {
       if (!payload) {
         return
       }
