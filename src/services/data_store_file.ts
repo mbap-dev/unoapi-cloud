@@ -97,10 +97,6 @@ const dataStoreFile = async (phone: string, config: Config): Promise<DataStore> 
     })
   }
 	dataStore.writeToFile = (path: string) => {
-    const { writeFileSync } = require('fs')
-    // for(const a in Object.keys(dataStore.toJSON())) {
-    //   console.log(a)
-    // }
     writeFileSync(path, JSON.stringify(dataStore.toJSON()))
   }
   dataStore.readFromFile = (path: string) => {
@@ -168,7 +164,8 @@ const dataStoreFile = async (phone: string, config: Config): Promise<DataStore> 
     statuses.set(id, status)
   }
   dataStore.loadStatus = async (id: string) => {
-    return statuses.get(id)
+    const status = statuses.get(id)
+    return status ? undefined : status as MessageStatus
   }
 
   dataStore.loadUnoId = async (id: string) =>  ids.get(id) || ids.get(`${phone}-${id}`)

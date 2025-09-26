@@ -1,4 +1,4 @@
-import { AnyMessageContent, WAMessageContent, WAMessage, isJidNewsletter, isJidUser, isLidUser, proto } from 'baileys'
+import { AnyMessageContent, WAMessageContent, WAMessage, isJidNewsletter, isJidUser, isLidUser, proto, isJidGroup } from 'baileys'
 import mime from 'mime-types'
 import { parsePhoneNumber } from 'awesome-phonenumber'
 import vCard from 'vcf'
@@ -18,6 +18,8 @@ const MESSAGE_STUB_TYPE_ERRORS = [
   'No SenderKeyRecord found for decryption'.toLowerCase(),
   'No session record'.toLowerCase(),
   'No matching sessions found for message'.toLowerCase(),
+  'No sender key for'.toLowerCase(),
+  'Cannot create property'.toLowerCase(),
 ]
 
 export class BindTemplateError extends Error {
@@ -28,14 +30,20 @@ export class BindTemplateError extends Error {
 
 export class DecryptError extends Error {
   private content: object
+  private messageId: string
 
-  constructor(content: object) {
+  constructor(content: object, messageId) {
     super('')
     this.content = content
+    this.messageId = messageId
   }
 
   getContent() {
     return this.content
+  }
+
+  getMessageId() {
+    return this.messageId
   }
 }
 
@@ -113,9 +121,7 @@ export const getMimetype = (payload: any) => {
 export const getMessageType = (payload: any) => {
   if (payload.update) {
     return 'update'
-  // } else if (payload.status && ![2, '2', 'SERVER_ACK'].includes(payload.status) && !payload.key.fromMe) {
-  // && [1, '1', 'PENDING', '2', 'SERVER_ACK', 3, '3', 'DELIVERY_ACK'].includes(payload.status)
-  } else if (payload.status) {
+  } else if (payload.status && ![2, '2', 'SERVER_ACK'].includes(payload.status) && !payload.key.fromMe) {
     return 'update'
   } else if (payload.receipt) {
     return 'receipt'
@@ -571,9 +577,9 @@ export const jidToPhoneNumberIfUser = (value: any): string => {
  }
 */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const fromBaileysMessageContent = (phone: string, payload: any, config?: Partial<Config>): [any, string, string] => {
+export const fromBaileysMessageContent = (phone: string, payload: any, config?: Partial<Config>): [any, string, string, string] => {
   try {
-    const { key: { id: whatsappMessageId, fromMe } } = payload
+    const { key: { id: whatsappMessageId, originalId, fromMe } } = payload
     const [chatJid, senderPhone, senderId] = getChatAndNumberAndId(payload)
     const messageType = getMessageType(payload)
     const binMessage = payload.update || payload.receipt || (messageType && payload.message && payload.message[messageType])
@@ -591,6 +597,10 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
       groupMetadata.group_subject = payload.groupMetadata.subject
       groupMetadata.group_id = chatJid
       groupMetadata.group_picture = payload.groupMetadata.profilePicture
+    } else if (isJidGroup(chatJid)) {
+      groupMetadata.group_subject = chatJid
+      groupMetadata.group_id = chatJid
+      groupMetadata.group_picture = ''
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const statuses: any[] = []
@@ -625,7 +635,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phone,
+          id: chatJid,
           changes: [change],
         },
       ],
@@ -716,7 +726,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
           return fromBaileysMessageContent(phone, { ...payload, message: { editedMessage: { message: { protocolMessage: binMessage }}}}, config)
         } else {
           logger.debug(`Ignore message type ${messageType}`)
-          return [null, senderPhone, senderId]
+          return [null, senderPhone, senderId, chatJid]
         }
 
       case 'ephemeralMessage':
@@ -789,21 +799,21 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
         if (payload.messageStubType == 2 && 
             payload.messageStubParameters &&
             payload.messageStubParameters[0] &&
-            MESSAGE_STUB_TYPE_ERRORS.includes(payload.messageStubParameters[0].toLowerCase())) {
+            MESSAGE_STUB_TYPE_ERRORS.filter(s => payload.messageStubParameters[0].toLowerCase().indexOf(s) >= 0).length > 0) {
           message.text = {
             body: MESSAGE_CHECK_WAAPP || t('failed_decrypt'),
           }
           message.type = 'text'
           change.value.messages.push(message)
-          throw new DecryptError(data)
+          throw new DecryptError(data, originalId || whatsappMessageId)
         } else {
-          return [null, senderPhone, senderId]
+          return [null, senderPhone, senderId, chatJid]
         }
 
       case 'update':
         const baileysStatus = payload.status || payload.update.status
         if (!baileysStatus && payload.update.status != 0 && !payload?.update?.messageStubType && !payload?.update?.starred) {
-          return [null, senderPhone, senderId]
+          return [null, senderPhone, senderId, chatJid]
         }
         switch (baileysStatus) {
           case 0:
@@ -875,7 +885,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
       case 'albumMessage':
       case 'keepInChatMessage':
         logger.debug(`Ignore message type ${messageType}`)
-        return [null, senderPhone, senderId]
+        return [null, senderPhone, senderId, chatJid]
 
       default:
         cloudApiStatus = 'failed'
@@ -956,7 +966,7 @@ export const fromBaileysMessageContent = (phone: string, payload: any, config?: 
       change.value.messages.push(message)
     }
     logger.debug('fromBaileysMessageContent %s => %s', phone, JSON.stringify(data))
-    return [data, senderPhone, senderId]
+    return [data, senderPhone, senderId, chatJid]
   } catch (e) {
     logger.error(e, 'Error on convert baileys to cloud-api')
     throw e

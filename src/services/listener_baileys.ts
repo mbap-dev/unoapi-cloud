@@ -3,7 +3,7 @@ import logger from './logger'
 import { Outgoing } from './outgoing'
 import { Broadcast } from './broadcast'
 import { getConfig } from './config'
-import { fromBaileysMessageContent, getMessageType, BindTemplateError, isSaveMedia, jidToPhoneNumber } from './transformer'
+import { fromBaileysMessageContent, getMessageType, BindTemplateError, isSaveMedia, jidToPhoneNumber, DecryptError } from './transformer'
 import { WAMessage, delay } from 'baileys'
 import { Template } from './template'
 import { UNOAPI_DELAY_AFTER_FIRST_MESSAGE_MS, UNOAPI_DELAY_BETWEEN_MESSAGES_MS } from '../defaults'
@@ -86,30 +86,32 @@ export class ListenerBaileys implements Listener {
   }
 
   public async sendOne(phone: string, message: object) {
-    logger.debug(`Listener receive message %s`, JSON.stringify(message))
+    logger.debug('Listener receive message %s', JSON.stringify(message))
     let i: WAMessage = message as WAMessage
     const messageType = getMessageType(message)
-    logger.debug(`messageType %s...`, messageType)
+    logger.debug('messageType %s...', messageType)
     const config = await this.getConfig(phone)
     const store = await config.getStore(phone, config)
+    const idBaileys = i.key.id!
     if (messageType && !['update', 'receipt'].includes(messageType)) {
       i = await config.getMessageMetadata(i)
-      if (i.key && i.key) {
+      await store.dataStore.setMessage(i.key.remoteJid!, i)
+      if (!i.key['originalId']) {
+        i.key['originalId'] = idBaileys
         const idUno = uuid()
-        const idBaileys = i.key.id!
-        await store?.dataStore.setUnoId(idBaileys, idUno)
-        await store?.dataStore.setKey(idUno, i.key)
-        await store?.dataStore.setKey(idBaileys, i.key)
-        await store.dataStore.setMessage(i.key.remoteJid!, i)
+        await store.dataStore.setUnoId(idUno, idBaileys)
+        await store.dataStore.setUnoId(idBaileys, idUno)
+        await store.dataStore.setKey(idBaileys, i.key)
         i.key.id = idUno
-        if (isSaveMedia(i)) {
-          logger.debug(`Saving media...`)
-          i = await store?.mediaStore.saveMedia(i)
-          logger.debug(`Saved media!`)
-        }
+        await store.dataStore.setMessage(i.key.remoteJid!, i)
+      }
+      await store.dataStore.setKey(i.key.id!, i.key)
+      if (isSaveMedia(i)) {
+        logger.debug('Saving media message id %s...', idBaileys)
+        i = await store?.mediaStore.saveMedia(i)
+        logger.debug('Saved media message id %s!', idBaileys)
       }
     }
-
     const key = i.key
     // possible update message or delete message
     if (key?.id && (key?.fromMe || (!key?.fromMe && ((message as any)?.update?.messageStubType == 1)))) {
@@ -153,7 +155,11 @@ export class ListenerBaileys implements Listener {
       const senderId = resp[2]
       const { dataStore } = await config.getStore(phone, config)
       await dataStore.setJidIfNotFound(jidToPhoneNumber(senderPhone, ''), senderId)
+      await store.dataStore.setStatus(idBaileys, 'decrypted')
     } catch (error) {
+      if (error instanceof DecryptError) {
+        await store.dataStore.setStatus(idBaileys, 'decryption_failed')
+      }
       if (error instanceof BindTemplateError) {
         const template = new Template(this.getConfig)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,7 +174,7 @@ export class ListenerBaileys implements Listener {
         const status = state.status || 'error'
         const id = state.id
         logger.debug(`Set status message %s to %s`, id, status)
-        await store?.dataStore?.setStatus(id, status)
+        await store.dataStore.setStatus(id, status)
       }
     }
     if (data) {

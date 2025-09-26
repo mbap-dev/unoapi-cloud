@@ -32,12 +32,12 @@ import { Response } from './response'
 import QRCode from 'qrcode'
 import { Template } from './template'
 import logger from './logger'
-import { FETCH_TIMEOUT_MS, VALIDATE_MEDIA_LINK_BEFORE_SEND, WHATSAPP_VERSION } from '../defaults'
+import { CONVERT_AUDIO_MESSAGE_TO_OGG, FETCH_TIMEOUT_MS, VALIDATE_MEDIA_LINK_BEFORE_SEND } from '../defaults'
 import { t } from '../i18n'
 import { ClientForward } from './client_forward'
 import { SendError } from './send_error'
+import audioConverter from '../utils/audio_converter'
 
-// Adicione esta classe antes da classe ClientBaileys
 class PresignedLinkValidator {
   private static isPresignedLink(url: string): boolean {
     return url.includes('X-Amz-Algorithm') || url.includes('response-content-disposition') || url.includes('X-Amz-Signature')
@@ -47,7 +47,6 @@ class PresignedLinkValidator {
     const isPresigned = this.isPresignedLink(url)
 
     if (!isPresigned) {
-      // Para links normais, tenta HEAD primeiro, depois GET como fallback
       try {
         const response = await fetch(url, {
           signal: AbortSignal.timeout(10000),
@@ -71,8 +70,7 @@ class PresignedLinkValidator {
         }
       }
     }
-
-    // Para links pré-assinados, usa GET com Range para evitar problemas com HEAD
+    
     logger.info(`Detected presigned link, starting validation with GET Range: ${url}`)
 
     const maxAttempts = 40
@@ -90,8 +88,7 @@ class PresignedLinkValidator {
 
       try {
         logger.debug(`Validating presigned link attempt ${attempt}/${maxAttempts}: ${url}`)
-
-        // Usa GET com Range para baixar apenas 1 byte (evita problema HEAD)
+        
         const response = await fetch(url, {
           signal: AbortSignal.timeout(8000),
           method: 'GET',
@@ -102,12 +99,10 @@ class PresignedLinkValidator {
             'Cache-Control': 'no-cache',
           },
         })
-
-        // Status 206 (Partial Content) ou 200 (OK) indicam sucesso
+        
         if (response.ok || response.status === 206) {
           logger.info(`Presigned link validated successfully on attempt ${attempt} (status: ${response.status}): ${url}`)
-
-          // Consume o response body para evitar memory leak
+          
           try {
             await response.text()
           } catch (e) {
@@ -241,9 +236,9 @@ const closeDefault = async () => logger.info(`Close connection`)
 export class ClientBaileys implements Client {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   readonly sendMessageDefault: sendMessage = async (_phone: string, _message: AnyMessageContent, _options: unknown) => {
-    const sessionStore = this?.phone && (await (await this?.config?.getStore(this.phone, this.config)).sessionStore)
+    const sessionStore = this?.phone && await (await this?.config?.getStore(this.phone, this.config)).sessionStore
     if (sessionStore) {
-      if (!(await sessionStore.isStatusConnecting(this.phone))) {
+      if (!await sessionStore.isStatusConnecting(this.phone)) {
         clients.delete(this.phone)
       }
       if (await sessionStore.isStatusOnline(this.phone)) {
@@ -275,7 +270,11 @@ export class ClientBaileys implements Client {
   private onWebhookError = async (error: any) => {
     const { sessionStore } = this.store!
     if (!this.config.throwWebhookError && error.name === 'FetchError' && (await sessionStore.isStatusOnline(this.phone))) {
-      return this.sendMessage(phoneNumberToJid(this.phone), { text: `Error on send message to webhook: ${error.message}` }, {})
+      return this.sendMessage(
+        phoneNumberToJid(this.phone),
+        { text: `Error on send message to webhook: ${error.message}`},
+        {}
+      )
     }
     if (this.config.throwWebhookError) {
       throw error
@@ -600,24 +599,12 @@ export class ClientBaileys implements Client {
             const template = new Template(this.getConfig)
             content = await template.bind(this.phone, payload.template.name, payload.template.components)
           } else {
-            // Na função send(), substitua a validação existente:
-            // Na função send(), substitua toda a validação de mídia por:
             if (VALIDATE_MEDIA_LINK_BEFORE_SEND && TYPE_MESSAGES_MEDIA.includes(type)) {
               const link = payload[type] && payload[type].link
-
               if (link) {
-                logger.info(`Starting media link validation for ${type}: ${link}`)
-
-                try {
-                  await PresignedLinkValidator.validateLink(link)
-                  logger.info(`Media link validation completed successfully for ${type}`)
-                } catch (error) {
-                  logger.error(`Media link validation failed for ${type}: ${error.message}`)
-
-                  if (error instanceof SendError) {
-                    throw error
-                  }
-                  throw new SendError(11, t('media_validation_error', error.message))
+                const response: FetchResponse = await fetch(link, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), method: 'HEAD'})
+                if (!response.ok) {
+                  throw new SendError(11, t('invalid_link', response.status, link))
                 }
               }
             }
@@ -643,6 +630,23 @@ export class ClientBaileys implements Client {
           }
           if (payload?.ttl) {
             disappearingMessagesInChat = payload.ttl
+          }
+          if (CONVERT_AUDIO_MESSAGE_TO_OGG && content.audio && content.ptt) {
+            try {
+              const url = content.audio?.url
+              if (url) {
+                const { buffer, waveform } = await audioConverter(url)
+                content.audio = buffer
+                content.waveform = waveform
+                content.mimetype = 'audio/ogg; codecs=opus'
+                content.ptt = true
+                logger.debug('Audio converted to OGG/Opus PTT for %s', url)
+              } else {
+                logger.debug('Skip audio conversion (not mp3 or missing url). url: %s', url)
+              }
+            } catch (err) {
+              logger.warn(err, 'Ignore error converting audio to ogg sending original')
+            }
           }
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           const sockDelays = delays.get(this.phone) || (delays.set(this.phone, new Map<string, Delay>()) && delays.get(this.phone)!)
@@ -784,13 +788,26 @@ export class ClientBaileys implements Client {
   }
 
   async getMessageMetadata<T>(message: T) {
-    if (!this.store || !(await this.store.sessionStore.isStatusOnline(this.phone))) {
+    const isOnline = await this.store?.sessionStore?.isStatusOnline(this.phone)
+    if (!isOnline) {
+      logger.debug('Skip retrieving group metadata store present: %s status: %s', !!this.store, isOnline)
+      if (message['key'] && message['key']['remoteJid'] && isJidGroup(message['key']['remoteJid'])) {
+        const groupMetadata = {
+          // owner_country_code: '55',
+          addressingMode: isLidUser(message['key']['remoteJid']) ? 'lid' : 'pn',
+          id: message['key']['remoteJid'],
+          owner: '',
+          subject: message['key']['remoteJid'],
+          participants: [],
+        }
+        message['groupMetadata'] = groupMetadata!
+      }
       return message
     }
     const key = message && message['key']
     let remoteJid
     if (key.remoteJid && isJidGroup(key.remoteJid)) {
-      logger.debug(`Retrieving group metadata...`)
+      logger.debug('Retrieving group metadata...')
       remoteJid = key.participant
       let groupMetadata: GroupMetadata | undefined
       try {

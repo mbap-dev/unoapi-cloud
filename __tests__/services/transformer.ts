@@ -227,38 +227,6 @@ describe('service transformer', () => {
     expect(phoneNumberToJid('554936213155')).toEqual('554936213155@s.whatsapp.net')
   })
 
-  test('getMessageType with status PENDING', async () => {
-    const payload = {
-      key: {
-        fromMe: true
-      },
-      message: {
-        extendedTextMessage: {
-          text: 'testinhoooootestinhooooo'
-        }
-      },
-      messageTimestamp: '1756989961',
-      status: 'PENDING'
-    }
-    expect(getMessageType(payload)).toEqual('update')
-  })
-
-  test('getMessageType with status SERVER_ACK', async () => {
-    const payload = {
-      key: {
-        fromMe: true
-      },
-      message: {
-        extendedTextMessage: {
-          text: 'testinhoooootestinhooooo'}
-        },
-        messageTimestamp: '1756989961',
-        status: 'SERVER_ACK'
-    }
-    expect(getMessageType(payload)).toEqual('update')
-  })
-
-
   test('getMessageType with conversation', async () => {
     expect(getMessageType({ message: { conversation: 'test' } })).toEqual('conversation')
   })
@@ -267,11 +235,11 @@ describe('service transformer', () => {
     expect(getMessageType({ message: { imageMessage: {} } })).toEqual('imageMessage')
   })
 
-  test('getMessageType with status 3 and fromMe true', async () => {
+  test('getMessageType with status 3 and fromMe false', async () => {
     const input = {
       key: {
         remoteJid: '554988290955@s.whatsapp.net',
-        fromMe: true,
+        fromMe: false,
         id: '3AB4BB2F72F2D4692924',
       },
       status: 3,
@@ -289,7 +257,7 @@ describe('service transformer', () => {
         fromMe: false,
         id: '3AB4BB2F72F2D4692924',
       },
-      // status: 2,
+      status: 2,
       message: {
         conversation: 'Iiiiiiiiiiiiii',
       },
@@ -300,7 +268,7 @@ describe('service transformer', () => {
   test('getMessageType with update', async () => {
     const input = {
       key: {
-        fromMe: true,
+        fromMe: false,
       },
       status: 3,
       message: {
@@ -376,7 +344,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -431,7 +399,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -483,7 +451,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -541,7 +509,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -606,7 +574,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -665,7 +633,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -727,7 +695,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -785,7 +753,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -839,7 +807,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -893,7 +861,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -947,7 +915,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -1007,7 +975,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -1061,7 +1029,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -1116,6 +1084,26 @@ describe('service transformer', () => {
     expect(getMessageType(input)).toEqual('protocolMessage')
   })
 
+  test('fromBaileysMessageContent with self in group return chatId and group_id', async () => {
+    const phoneNumer = '554988290955'
+    const participant = `${phoneNumer}@s.whatsapp.net`
+    const remoteJid = `${new Date().getTime()}@g.us`
+    const id = `wa.${new Date().getTime()}`
+    const input = {
+      key: {
+        remoteJid, fromMe: true,  id, participant
+      },
+      status: 2,
+      message: {
+        conversation: 'não está funcionando, quer acessar meu computador'
+      },
+      verifiedBizName: ''
+    }
+    const resp = fromBaileysMessageContent('5549988290955', input)
+    expect(resp[3]).toBe(remoteJid)
+    expect(resp[0].entry[0].changes[0].value.contacts[0].group_id).toBe(remoteJid)
+  })
+
   test('fromBaileysMessageContent without protocolMessage editedMessage', async () => {
     const remotePhoneNumber = '+11115551212'
     const remoteJid = `${remotePhoneNumber}@s.whatsapp.net`
@@ -1144,7 +1132,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -1207,7 +1195,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -1346,7 +1334,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {
@@ -1558,7 +1546,7 @@ describe('service transformer', () => {
       object: 'whatsapp_business_account',
       entry: [
         {
-          id: phoneNumer,
+          id: remoteJid,
           changes: [
             {
               value: {

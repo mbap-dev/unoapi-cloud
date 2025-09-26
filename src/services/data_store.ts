@@ -7,19 +7,20 @@ export interface getDataStore {
   (phone: string, config: Config): Promise<DataStore>
 }
 
-export type MessageStatus =
-  | 'scheduled'
-  | 'pending'
-  | 'without-whatsapp'
-  | 'invalid-phone-number'
-  | 'error'
-  | 'failed'
-  | 'sent'
-  | 'delivered'
-  | 'read'
-  | 'played'
-  | 'accepted'
-  | 'deleted'
+export type MessageStatus = 'scheduled'
+      | 'pending'
+      | 'without-whatsapp'
+      | 'invalid-phone-number'
+      | 'error'
+      | 'failed'
+      | 'sent'
+      | 'delivered'
+      | 'read'
+      | 'played'
+      | 'accepted'
+      | 'deleted'
+      | 'decrypted'
+      | 'decryption_failed'
 
 export type DataStore = {
   state: AuthenticationState
@@ -43,7 +44,7 @@ export type DataStore = {
   loadGroupMetada: (jid: string, sock: Partial<WASocket>) => Promise<GroupMetadata | undefined>
   loadUnoId: (id: string) => Promise<string | undefined>
   setStatus: (id: string, status: MessageStatus) => Promise<void>
-  loadStatus: (id: string) => Promise<string | undefined>
+  loadStatus: (id: string) => Promise<MessageStatus | undefined>
   getJid: (phone: string) => Promise<string | undefined>
   loadJid: (phone: string, sock: WASocket) => Promise<string | undefined>
   setJid: (phone: string, jid: string) => Promise<void>
