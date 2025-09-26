@@ -22,20 +22,23 @@ jobs:
       - run: yarn lint
       - run: yarn format
       - run: yarn test
+
   build:
-    name: Build (linux/${{ matrix.arch }})
     needs: test
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        arch: [ amd64, arm64 ]
+        platform: [linux/amd64, linux/arm64]
     permissions:
       contents: read
       packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get architecture from platform
+        id: arch
+        run: echo "arch=$(echo ${{ matrix.platform }} | cut -d '/' -f 2)" >> $GITHUB_OUTPUT
 
       - name: Docker meta
         id: meta
@@ -44,7 +47,8 @@ jobs:
           images: |
             ghcr.io/${{ github.repository }}
           tags: |
-            ${{ github.ref_name }}
+            # Gera uma tag específica para a arquitetura, ex: 'main-amd64'
+            ${{ github.ref_name }}-${{ steps.arch.outputs.arch }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -60,48 +64,26 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push by digest (linux/${{ matrix.arch }})
-        id: build
+      - name: Build and push by platform
         uses: docker/build-push-action@v5
         with:
+          platforms: ${{ matrix.platform }}
           context: .
           file: ./Dockerfile
-          platforms: linux/${{ matrix.arch }}
           push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: >-
-            type=registry,push-by-digest=true,name=ghcr.io/${{ github.repository }}
 
-      - name: Export digest
-        if: github.event_name != 'pull_request'
-        run: |
-          mkdir -p digests
-          echo "ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}" > digests/digest.txt
-          echo "linux/${{ matrix.arch }}" > digests/platform.txt
-
-      - name: Upload digest artifact
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: digest-linux-${{ matrix.arch }}
-          path: digests
-
-  merge-manifest:
-    name: Merge manifest
+  merge-manifests:
     needs: build
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Download digests
-        uses: actions/download-artifact@v4
-        with:
-          path: ./digests
-
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -109,27 +91,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Docker meta
+      - name: Docker meta for final tag
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
             ghcr.io/${{ github.repository }}
           tags: |
+            # Gera a tag final sem o sufixo da arquitetura, ex: 'main'
             ${{ github.ref_name }}
 
-      - name: Create and push manifest list
+      - name: Create and push manifest
         run: |
-          set -euo pipefail
-          # Collect image digests
-          imgs=$(find ./digests -type f -name digest.txt -maxdepth 2 -print0 | xargs -0 -I {} cat {})
-          echo "Merging the following images:"
-          echo "$imgs" | tr ' ' '\n'
-          # Create manifest for each computed tag
-          while IFS= read -r tag; do
-            echo "Creating manifest for tag: $tag"
-            docker buildx imagetools create -t "$tag" $imgs
-          done <<< "${{ steps.meta.outputs.tags }}"
+          docker manifest create ${{ steps.meta.outputs.tags }} \
+            --amend ghcr.io/${{ github.repository }}:${{ github.ref_name }}-amd64 \
+            --amend ghcr.io/${{ github.repository }}:${{ github.ref_name }}-arm64
+          docker manifest push ${{ steps.meta.outputs.tags }}
