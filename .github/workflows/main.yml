@@ -22,10 +22,14 @@ jobs:
       - run: yarn lint
       - run: yarn format
       - run: yarn test
-
   build:
+    name: Build (${{ matrix.platform }})
     needs: test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ linux/amd64, linux/arm64 ]
     permissions:
       contents: read
       packages: write
@@ -56,14 +60,76 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
+      - name: Build and push by digest (${{ matrix.platform }})
+        id: build
         uses: docker/build-push-action@v5
         with:
-          platforms: linux/amd64,linux/arm64
           context: .
           file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          outputs: >-
+            type=registry,push-by-digest=true,name=ghcr.io/${{ github.repository }}
+
+      - name: Export digest
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p digests
+          echo "ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}" > digests/digest.txt
+          echo "${{ matrix.platform }}" > digests/platform.txt
+
+      - name: Upload digest artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.platform }}
+          path: digests
+
+  merge-manifest:
+    name: Merge manifest
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ./digests
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            ${{ github.ref_name }}
+
+      - name: Create and push manifest list
+        run: |
+          set -euo pipefail
+          # Collect image digests
+          imgs=$(find ./digests -type f -name digest.txt -maxdepth 2 -print0 | xargs -0 -I {} cat {})
+          echo "Merging the following images:"
+          echo "$imgs" | tr ' ' '\n'
+          # Create manifest for each computed tag
+          while IFS= read -r tag; do
+            echo "Creating manifest for tag: $tag"
+            docker buildx imagetools create -t "$tag" $imgs
+          done <<< "${{ steps.meta.outputs.tags }}"
