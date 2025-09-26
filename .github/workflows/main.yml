@@ -22,7 +22,6 @@ jobs:
       - run: yarn lint
       - run: yarn format
       - run: yarn test
-
   build:
     needs: test
     runs-on: ubuntu-latest
@@ -33,8 +32,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Get architecture from platform
         id: arch
@@ -44,25 +42,19 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}
           tags: |
-            # Gera uma tag específica para a arquitetura, ex: 'main-amd64'
+            # tag por arquitetura, ex: 'v3.0.0.alpha.24-amd64'
             ${{ github.ref_name }}-${{ steps.arch.outputs.arch }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Login to GitHub Container Registry
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Build and push by platform
         uses: docker/build-push-action@v5
@@ -75,6 +67,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
 
   merge-manifests:
     needs: build
@@ -84,8 +78,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -95,10 +88,8 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}
           tags: |
-            # Gera a tag final sem o sufixo da arquitetura, ex: 'main'
             ${{ github.ref_name }}
 
       - name: Create and push manifest
