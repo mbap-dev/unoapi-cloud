@@ -724,18 +724,22 @@
                 table.clear();
 
                 sessions.forEach(session => {
-                    const disconnectBtn = ['online', 'connecting'].includes((session.status || '').toLowerCase())
+                    const statusLower = (session.status || '').toLowerCase()
+                    const disconnectBtn = ['online', 'connecting'].includes(statusLower)
                       ? `<button class="btn btn-sm btn-secondary disconnect-btn" data-number="${session.display_phone_number}">
                             <i class="fas fa-unlink"></i> Desconectar
+                         </button>`
+                      : '';
+                    const connectBtn = !['online', 'connecting'].includes(statusLower)
+                      ? `<button class=\"btn btn-sm btn-success connect-btn\" data-bs-toggle=\"modal\" data-bs-target=\"#connectModal\" data-number=\"${session.display_phone_number}\"> 
+                            <i class=\"fas fa-link\"></i> Conectar
                          </button>`
                       : '';
                     const buttons = `
                         <button class=\"btn btn-sm btn-warning edit-btn\" data-bs-toggle=\"modal\" data-bs-target=\"#editModal\" data-number=\"${session.display_phone_number}\"> 
                             <i class=\"fas fa-edit\"></i> Editar
                         </button>
-                        <button class=\"btn btn-sm btn-success connect-btn\" data-bs-toggle=\"modal\" data-bs-target=\"#connectModal\" data-number=\"${session.display_phone_number}\"> 
-                            <i class=\"fas fa-link\"></i> Conectar
-                        </button>
+                        ${connectBtn}
                         ${disconnectBtn}
                         <button class=\"btn btn-sm btn-danger delete-btn\" data-number=\"${session.display_phone_number}\"> 
                             <i class=\"fas fa-trash\"></i> Deletar
