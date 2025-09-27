@@ -246,6 +246,16 @@
                     <form id="editForm">
                         <div class="row edit-form-row">
                           <div class="col-12 col-md-12 col-lg-6">
+                              <label for="provider" class="form-label">Provider</label>
+                              <select id="provider" name="provider" class="form-control">
+                                <option value="baileys">baileys</option>
+                                <option value="whatsmeow">whatsmeow</option>
+                                <option value="forwarder">forwarder</option>
+                              </select>
+                          </div>
+                        </div>
+                        <div class="row edit-form-row">
+                          <div class="col-12 col-md-12 col-lg-6">
                               <label for="label" class="form-label">Identificação</label>
                               <input type="text" class="form-control" id="label" name="lavel" placeholder="Identificação">
                           </div>
@@ -510,6 +520,8 @@
         let currentPhoneNumber = ''
         let currentQrTimeOut = ''
         let lastTimeout = undefined
+        let qrPollIntervalId = undefined
+        let statusPollIntervalId = undefined
         
         const onBroadcast = function(data) {
           if (data.phone == currentPhoneNumber) {
@@ -793,6 +805,7 @@
 
             //Edit form for session number
             function populateEditForm(session) {
+                $('#provider').val(session.provider || 'baileys');
                 $('#label').val(session.label);
                 $('#authToken').val(session.authToken);
                 $('#wavoipToken').val(session.wavoipToken);
@@ -886,6 +899,7 @@
 
                 if (token && number) {
                     const sessionData = {
+                        provider: $('#provider').val(),
                         label: $('#label').val(),
                         authToken: $('#authToken').val(),
                         wavoipToken: $('#wavoipToken').val(),
@@ -969,15 +983,20 @@
                         return response.json();
                     })
                     .then(data => {
-                        if (data.status === 'offline' || data.status === 'disconnected') {
-                            attemptRegister(number, token);
-                        } else if (data.status === 'connecting') {
-                            connectToWebSocket(number, data.qrTimeoutMs);
-                        } else if (data.status === 'online') {
-                            document.getElementById('qrCodeContainer').innerHTML = '';
-                            document.getElementById('qrCodeMessage').textContent = 'Sessão já está Conectada';
+                        const provider = data.provider || 'baileys';
+                        if (provider === 'whatsmeow') {
+                            startWhatsmeowConnectFlow(number, token);
                         } else {
-                            console.log("Status não está offline nem connecting.");
+                            if (data.status === 'offline' || data.status === 'disconnected') {
+                                attemptRegister(number, token);
+                            } else if (data.status === 'connecting') {
+                                connectToWebSocket(number, data.qrTimeoutMs);
+                            } else if (data.status === 'online') {
+                                document.getElementById('qrCodeContainer').innerHTML = '';
+                                document.getElementById('qrCodeMessage').textContent = 'Sessão já está Conectada';
+                            } else {
+                                console.log("Status não está offline nem connecting.");
+                            }
                         }
                     })
                     .catch(error => {
@@ -1062,10 +1081,67 @@
               }
             }
 
+            // Whatsmeow connect flow
+            function startWhatsmeowConnectFlow(number, token) {
+              // clear old timers
+              if (qrPollIntervalId) { clearInterval(qrPollIntervalId); qrPollIntervalId = undefined }
+              if (statusPollIntervalId) { clearInterval(statusPollIntervalId); statusPollIntervalId = undefined }
+
+              currentPhoneNumber = number
+              document.getElementById('qrCodeMessage').textContent = 'Preparando conexão (whatsmeow)...';
+              document.getElementById('qrCodeContainer').innerHTML = '';
+
+              // trigger adapter connect via UNO
+              fetch(`${apiUrl}/sessions/${number}/connect`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+              }).catch(_ => {})
+
+              // poll QR image
+              qrPollIntervalId = setInterval(() => {
+                fetch(`${apiUrl}/sessions/${number}/qr`, { headers: { Authorization: `Bearer ${token}` } })
+                  .then(resp => {
+                    if (resp.ok) {
+                      return resp.text()
+                    }
+                    throw new Error('no qr')
+                  })
+                  .then(base64 => {
+                    const img = `data:image/png;base64,${base64}`
+                    const qrcodeDiv = document.getElementById('qrCodeContainer');
+                    qrcodeDiv.innerHTML = `<img src="${img}" alt="QR Code">`;
+                    document.getElementById('qrCodeMessage').textContent = 'Leia o QR Code Abaixo';
+                  })
+                  .catch(_ => {})
+              }, 1500)
+
+              // poll status
+              statusPollIntervalId = setInterval(() => {
+                fetch(`${apiUrl}/v15.0/${number}`, { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.json())
+                  .then(data => {
+                    const statusDiv = document.getElementById('qrCodeMessage');
+                    if (data.status === 'online') {
+                      statusDiv.textContent = 'Conectado!';
+                      if (qrPollIntervalId) { clearInterval(qrPollIntervalId); qrPollIntervalId = undefined }
+                      if (statusPollIntervalId) { clearInterval(statusPollIntervalId); statusPollIntervalId = undefined }
+                      document.getElementById('qrCodeContainer').innerHTML = '';
+                    } else if (data.status === 'connecting') {
+                      statusDiv.textContent = 'Aguardando leitura do QR Code...';
+                    } else if (data.status === 'disconnected' || data.status === 'offline') {
+                      statusDiv.textContent = `Status: ${data.status}`;
+                    }
+                  })
+                  .catch(_ => {})
+              }, 2000)
+            }
+
             // disconnect websocket on modal close
             $('#connectModal').on('hidden.bs.modal', function () {
               currentPhoneNumber = ''
               currentQrTimeOut = ''
+              if (qrPollIntervalId) { clearInterval(qrPollIntervalId); qrPollIntervalId = undefined }
+              if (statusPollIntervalId) { clearInterval(statusPollIntervalId); statusPollIntervalId = undefined }
               document.getElementById('qrCodeContainer').innerHTML = '';
               document.getElementById('qrCodeMessage').textContent = 'Aguarde o QrCode/PairingCode';
             });            
