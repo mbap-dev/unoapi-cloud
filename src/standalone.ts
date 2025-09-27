@@ -166,6 +166,11 @@ if (process.env.AMQP_URL) {
     await channel?.assertExchange('unoapi.outgoing', 'topic', { durable: true })
     await channel?.assertQueue('outgoing.baileys', { durable: true })
     await channel?.bindQueue('outgoing.baileys', 'unoapi.outgoing', 'provider.baileys.*')
+    // Ensure Whatsmeow queues exist too (created but not consumed here)
+    await channel?.assertQueue('outgoing.baileys.dlq', { durable: true })
+    await channel?.assertQueue('outgoing.whatsmeow', { durable: true })
+    await channel?.bindQueue('outgoing.whatsmeow', 'unoapi.outgoing', 'provider.whatsmeow.*')
+    await channel?.assertQueue('outgoing.whatsmeow.dlq', { durable: true })
     const incomingBaileysWorker = new IncomingBaileys(listener, getConfigVar, getClientBaileys, onNewLoginn)
     const providerJob = new IncomingJob(incomingBaileysWorker, outgoing, getConfigVar)
     channel?.consume('outgoing.baileys', async (payload) => {
