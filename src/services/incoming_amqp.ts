@@ -16,7 +16,9 @@ const initExchange = async () => {
   await channel?.assertQueue('outgoing.baileys', { durable: true })
   await channel?.bindQueue('outgoing.baileys', EXCHANGE, 'provider.baileys.*')
   await channel?.assertQueue('outgoing.baileys.dlq', { durable: true })
-  // Do not declare or bind whatsmeow queues here; adapter owns its queue/bindings
+  await channel?.assertQueue('outgoing.whatsmeow', { durable: true, exclusive: false })
+  await channel?.bindQueue('outgoing.whatsmeow', EXCHANGE, 'provider.whatsmeow.*')
+  await channel?.assertQueue('outgoing.whatsmeow.dlq', { durable: true, exclusive: false })
   initialized = true
 }
 
