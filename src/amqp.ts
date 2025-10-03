@@ -116,6 +116,7 @@ export const amqpGetChannel = async () => {
     logger.info('Creating channel...')
     await amqpConnect()
     amqpChannel = await amqpChannelModel?.createChannel()
+    amqpChannel?.setMaxListeners(0)
     logger.info('Created channel!')
   }
   return amqpChannel

@@ -24,6 +24,11 @@ export const autoConnect = async (
           logger.info(`Ignore connecting phone ${phone} provider ${config.provider}...`)
           continue
         }
+        // Do not attempt local connection for external providers
+        if (config.provider === 'whatsmeow' || config.provider === 'forwarder') {
+          logger.info(`Provider ${config.provider} uses external adapter. Skipping auto connect for ${phone}...`)
+          continue
+        }
         if (config.server && config.server !== UNOAPI_SERVER_NAME) {
           logger.info(`Ignore connecting phone ${phone} server ${config.server} is not server current server ${UNOAPI_SERVER_NAME}...`)
           continue
