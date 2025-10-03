@@ -4,7 +4,8 @@ import { SessionStore } from './session_store'
 import { Listener } from './listener'
 import { OnNewLogin } from './socket'
 import logger from './logger'
-import { UNOAPI_SERVER_NAME } from '../defaults'
+import { UNOAPI_EXCHANGE_BRIDGE_NAME, UNOAPI_QUEUE_BIND, UNOAPI_SERVER_NAME } from '../defaults'
+import { amqpPublish } from '../amqp'
 
 export const autoConnect = async (
   sessionStore: SessionStore,
@@ -26,6 +27,15 @@ export const autoConnect = async (
         }
         // Do not attempt local connection for external providers
         if (config.provider === 'whatsmeow' || config.provider === 'forwarder') {
+          // For external providers, proactively request BindBridge to attach
+          // per-phone consumers on incoming bridge queues.
+          await amqpPublish(
+            UNOAPI_EXCHANGE_BRIDGE_NAME,
+            `${UNOAPI_QUEUE_BIND}.${UNOAPI_SERVER_NAME}`,
+            '',
+            { routingKey: phone },
+            { type: 'direct' },
+          )
           logger.info(`Provider ${config.provider} uses external adapter. Skipping auto connect for ${phone}...`)
           continue
         }
