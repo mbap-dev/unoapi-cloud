@@ -321,6 +321,46 @@ Visit `http://localhost:9876/ping` wil be render a "pong!"
 `yarn waker` 
   - move all messages in dead queues(listener, incoming, outgoing), to process retry
 
+## Provider Whatsmeow via RabbitMQ (usando incoming)
+
+Whatsmeow envia os webhooks pelo RabbitMQ via exchange de bridge (incoming), e o UnoAPI encaminha aos webhooks HTTP configurados.
+
+- Requisitos
+  - UnoAPI com `AMQP_URL` configurado (standalone/bridge ativam os consumers do bridge).
+  - Sessão configurada com `provider: "whatsmeow"` para o número atendido pelo adapter.
+
+- Topologia
+  - Exchange (bridge): `unoapi.brigde` (type `direct`)
+  - Queue consumida pelo UnoAPI: `unoapi.incoming.<UNOAPI_SERVER_NAME>` (já existente; criada/ligada pelo UnoAPI)
+  - Routing key: número da sessão (somente dígitos), ex.: `5541999999999`
+
+- Formato de publicação do adapter
+  - Propriedades: `contentType: application/json`, `persistent: true`
+  - Corpo: `{ "payload": <cloud_api_webhook_payload> }`
+    - `<cloud_api_webhook_payload>` é o mesmo formato do webhook Cloud API que o UnoAPI já aceita por HTTP.
+
+- Exemplo (Node.js / amqplib)
+```js
+// bridge exchange (incoming)
+channel.assertExchange('unoapi.brigde', 'direct', { durable: true })
+const phone = '5541999999999'
+const payload = {/* cloud api webhook payload */}
+const body = Buffer.from(JSON.stringify({ payload }))
+channel.publish('unoapi.brigde', phone, body, {
+  contentType: 'application/json',
+  persistent: true,
+})
+```
+
+- O que o UnoAPI faz
+  - Consome de `unoapi.incoming.<server>` por routing key (telefone) e republica para o fluxo padrão de saída (`unoapi.outgoing` no exchange broker), que faz o fan-out para cada webhook configurado.
+  - Para `provider = whatsmeow`, aplica o tratamento de mídia quando possível antes de entregar aos webhooks.
+  - Comportamento final idêntico ao endpoint HTTP `POST /webhooks/whatsapp/:phone`.
+
+- Observações
+  - O adapter não precisa conhecer `<UNOAPI_SERVER_NAME>`; só publica em `unoapi.brigde` com a routing key do telefone.
+  - O endpoint HTTP permanece disponível para compatibilidade.
+
 
 ## Config Options
 ### Config with Environment Variables

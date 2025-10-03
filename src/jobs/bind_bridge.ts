@@ -1,7 +1,7 @@
 import { IncomingJob } from './incoming'
 import { ListenerJob } from './listener'
 import { Broadcast } from '../services/broadcast'
-import { UNOAPI_QUEUE_INCOMING, UNOAPI_QUEUE_COMMANDER, UNOAPI_QUEUE_LISTENER, UNOAPI_SERVER_NAME, UNOAPI_EXCHANGE_BRIDGE_NAME } from '../defaults'
+import { UNOAPI_QUEUE_INCOMING, UNOAPI_QUEUE_COMMANDER, UNOAPI_QUEUE_LISTENER, UNOAPI_SERVER_NAME, UNOAPI_EXCHANGE_BRIDGE_NAME, UNOAPI_EXCHANGE_BROKER_NAME, UNOAPI_QUEUE_OUTGOING } from '../defaults'
 import { amqpConsume } from '../amqp'
 import { getConfig } from '../services/config'
 import { getConfigRedis } from '../services/config_redis'
@@ -17,6 +17,7 @@ import { addToBlacklistRedis, isInBlacklistInRedis } from '../services/blacklist
 import { ListenerAmqp } from '../services/listener_amqp'
 import { OutgoingCloudApi } from '../services/outgoing_cloud_api'
 import { IncomingBaileys } from '../services/incoming_baileys'
+import { IncomingWhatsmeow } from './incoming_whatsmeow'
 
 const getConfigLocal: getConfig = getConfigRedis
 const outgoingAmqp: Outgoing = new OutgoingAmqp(getConfigLocal)
@@ -34,7 +35,7 @@ const processeds = new Map<string, boolean>()
 export class BindBridgeJob {
   async consume(server: string, { routingKey }: { routingKey: string }) {
     const config = await getConfigLocal(routingKey)
-    if (config.provider && !['forwarder', 'baileys'].includes(config.provider!)) {
+    if (config.provider && !['forwarder', 'baileys', 'whatsmeow'].includes(config.provider!)) {
       logger.info(`Ignore connecting routingKey ${routingKey} provider ${config.provider}...`)
       return
     }
@@ -67,17 +68,33 @@ export class BindBridgeJob {
     )
 
     logger.info('Starting incoming consumer %s', routingKey)
-    await amqpConsume(
-      UNOAPI_EXCHANGE_BRIDGE_NAME,
-      `${UNOAPI_QUEUE_INCOMING}.${UNOAPI_SERVER_NAME}`,
-      routingKey,
-      incomingJob.consume.bind(incomingJob),
-      {
-        notifyFailedMessages,
-        priority: 5,
-        prefetch: 1 /* allways 1 */,
-        type: 'direct',
-      },
-    )
+    if (config.provider === 'whatsmeow') {
+      const job = new IncomingWhatsmeow()
+      await amqpConsume(
+        UNOAPI_EXCHANGE_BRIDGE_NAME,
+        `${UNOAPI_QUEUE_INCOMING}.${UNOAPI_SERVER_NAME}`,
+        routingKey,
+        job.consume.bind(job),
+        {
+          notifyFailedMessages,
+          priority: 5,
+          prefetch: 1 /* allways 1 */,
+          type: 'direct',
+        },
+      )
+    } else {
+      await amqpConsume(
+        UNOAPI_EXCHANGE_BRIDGE_NAME,
+        `${UNOAPI_QUEUE_INCOMING}.${UNOAPI_SERVER_NAME}`,
+        routingKey,
+        incomingJob.consume.bind(incomingJob),
+        {
+          notifyFailedMessages,
+          priority: 5,
+          prefetch: 1 /* allways 1 */,
+          type: 'direct',
+        },
+      )
+    }
   }
 }

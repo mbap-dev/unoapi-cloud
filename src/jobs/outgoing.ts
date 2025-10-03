@@ -63,6 +63,19 @@ export class OutgoingJob {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const a = { ...data as any }
     const payload: any = a.payload
+    // Provider adapters (e.g., Whatsmeow) can publish only { payload }
+    // to let UnoAPI fan-out to configured webhooks. In this case,
+    // re-enqueue one message per webhook to reuse the single-webhook path
+    // below (which applies provider-specific transforms when needed).
+    if (!a.webhooks && !a.webhook && payload) {
+      const config = await this.getConfig(phone)
+      await Promise.all(
+        config.webhooks.map(async (webhook) =>
+          amqpPublish(UNOAPI_EXCHANGE_BROKER_NAME, UNOAPI_QUEUE_OUTGOING, phone, { payload, webhook }, { type: 'topic' }),
+        ),
+      )
+      return
+    }
     if (a.webhooks) {
       const webhooks: Webhook[] = a.webhooks
       if (isFailedStatus(payload) && STATUS_FAILED_WEBHOOK_URL) {
