@@ -219,7 +219,12 @@ export class OutgoingJob {
                   // If download/decrypt fails, leave message as-is
                 }
               }
-              message.from = jidToPhoneNumber(message.from, '')
+              // Preserve digits-only Cloud payloads from adapters (e.g., whatsmeow)
+              // to avoid BR-specific normalization that inserts a '9' and
+              // breaks alignment with contacts[0].wa_id used by Chatwoot.
+              if (!/^\d+$/.test(message.from)) {
+                message.from = jidToPhoneNumber(message.from, '')
+              }
               return message
             })
           )
