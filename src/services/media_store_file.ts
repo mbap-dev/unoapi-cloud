@@ -1,5 +1,5 @@
 import { proto, WAMessage, downloadMediaMessage, downloadContentFromMessage, Contact } from 'baileys'
-import { getBinMessage, jidToPhoneNumberIfUser, toBuffer } from './transformer'
+import { getBinMessage, jidToPhoneNumberIfUser, toBuffer, TYPE_MESSAGES_MEDIA } from './transformer'
 import { writeFile } from 'fs/promises'
 import { existsSync, mkdirSync, rmSync, createReadStream } from 'fs'
 import path from 'path'
@@ -59,6 +59,77 @@ export const mediaStoreFile = (phone: string, config: Config, getDataStore: getD
     const dataStore = await getDataStore(phone, config)
     await dataStore.setMediaPayload(message.id, payload)
     message[message.type].id = mediaId
+    return message
+  }
+
+  mediaStore.saveMediaFromPayload = async (message: any) => {
+    if (TYPE_MESSAGES_MEDIA.includes(message.type)) {
+      const media = message[message.type] || {}
+      // Try both camelCase and snake_case keys
+      let mediaKey = media.mediaKey || media.media_key
+      const directPath = media.directPath || media.direct_path
+      const url = media.url || (directPath ? `https://mmg.whatsapp.net${directPath}` : undefined)
+      if (!mediaKey || (!directPath && !url)) {
+        return message
+      }
+      if (typeof mediaKey === 'string') {
+        // assume base64
+        try {
+          mediaKey = Buffer.from(mediaKey, 'base64')
+        } catch (_) {
+          /* ignore conversion errors */
+        }
+      } else if (typeof mediaKey === 'object' && mediaKey !== null) {
+        try {
+          mediaKey = Uint8Array.from(Object.values(mediaKey))
+        } catch (_) {
+          /* ignore conversion errors */
+        }
+      }
+      const mapMediaType = {
+        image: 'image',
+        video: 'video',
+        document: 'document',
+        sticker: 'sticker',
+        audio: 'audio'
+      } as const
+      try {
+        const stream = await downloadContentFromMessage(
+          {
+            mediaKey,
+            directPath,
+            url
+          } as any,
+          mapMediaType[message.type],
+          {}
+        )
+        const chunks: Buffer[] = []
+        for await (const chunk of stream) {
+          chunks.push(chunk as Buffer)
+        }
+        const buffer = Buffer.concat(chunks)
+        const mimetype: string =
+          media.mime_type ||
+          media.mimetype ||
+          (media.filename ? (mime.lookup(media.filename) as string) : 'application/octet-stream')
+        const filePath = mediaStore.getFilePath(phone, message.id, mimetype)
+        await mediaStore.saveMediaBuffer(filePath, buffer)
+        const mediaId = `${phone}/${message.id}`
+        const payloadMedia = {
+          messaging_product: 'whatsapp',
+          mime_type: mimetype,
+          sha256: media.fileSha256 || media.sha256,
+          file_size: media.fileLength || media.file_size,
+          id: mediaId,
+          filename: media.filename || filePath
+        }
+        const dataStore = await getDataStore(phone, config)
+        await dataStore.setMediaPayload(message.id, payloadMedia)
+        message[message.type].id = mediaId
+      } catch (err) {
+        // If download/decrypt fails, leave message as-is
+      }
+    }
     return message
   }
 
