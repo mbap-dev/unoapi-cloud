@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv'
 dotenv.config()
 
-import { 
+import {
   UNOAPI_QUEUE_RELOAD,
   UNOAPI_SERVER_NAME,
   UNOAPI_QUEUE_MEDIA,
