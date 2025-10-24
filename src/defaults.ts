@@ -13,6 +13,7 @@ export const UNOAPI_HEADER_NAME = process.env.UNOAPI_HEADER_NAME || 'Authorizati
 
 export const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.NODE_ENV == 'development' ? 'debug' : 'error')
 export const UNO_LOG_LEVEL = process.env.UNO_LOG_LEVEL || LOG_LEVEL
+export const UNOAPI_LOG_MODES = JSON.parse(process.env.UNOAPI_LOG_MODES || '["sysout"]')
 
 export const DEFAULT_LOCALE = process.env.DEFAULT_LOCALE || 'en'
 
@@ -84,7 +85,7 @@ export const UNOAPI_X_MAX_RETRIES: string = process.env.UNOAPI_X_MAX_RETRIES || 
 export const UNOAPI_EXCHANGE_NAME = process.env.UNOAPI_EXCHANGE_NAME || 'unoapi'
 export const UNOAPI_EXCHANGE_BROKER_NAME = `${UNOAPI_EXCHANGE_NAME}.broker`
 export const UNOAPI_EXCHANGE_BRIDGE_NAME = `${UNOAPI_EXCHANGE_NAME}.brigde`
-export const UNOAPI_QUEUE_NAME = process.env.UNOAPI_QUEUE_NAME || 'unoapi'
+export const UNOAPI_QUEUE_NAME = process.env.UNOAPI_QUEUE_NAME || process.env.UNOAPI_EXCHANGE_NAME || 'unoapi'
 export const UNOAPI_QUEUE_OUTGOING_PREFETCH = parseInt(process.env.UNOAPI_QUEUE_OUTGOING_PREFETCH || '1')
 export const UNOAPI_QUEUE_DELAYED = `${UNOAPI_QUEUE_NAME}.delayed`
 export const UNOAPI_QUEUE_WEBHOOK_STATUS_FAILED = `${UNOAPI_QUEUE_NAME}.webhook.status.failed`
