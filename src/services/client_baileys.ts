@@ -366,15 +366,16 @@ export class ClientBaileys implements Client {
     this.event('call', async (events: any[]) => {
       for (let i = 0; i < events.length; i++) {
         const { from, id, status } = events[i]
+        const normalizedFrom = isLidUser(from) ? jidNormalizedUser(from) : from
         if (status == 'ringing' && !this.calls.has(from)) {
           this.calls.set(from, true)
           if (this.config.rejectCalls && this.rejectCall) {
             await this.rejectCall(id, from)
-            const response = await this.sendMessage(from, { text: this.config.rejectCalls }, {})
+            const response = await this.sendMessage(normalizedFrom, { text: this.config.rejectCalls }, {})
             const message = {
               key: {
                 fromMe: true,
-                remoteJid: from,
+                remoteJid: normalizedFrom,
                 id: response.key.id,
               },
               message: {
@@ -389,7 +390,7 @@ export class ClientBaileys implements Client {
             const waMessageKey = {
               fromMe: false,
               id: generateUnoId('CALL'),
-              remoteJid: from,
+              remoteJid: normalizedFrom,
             }
             const message = {
               key: waMessageKey,
