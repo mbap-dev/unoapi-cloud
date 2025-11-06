@@ -371,11 +371,12 @@ export class ClientBaileys implements Client {
     this.event('call', async (events: any[]) => {
       for (let i = 0; i < events.length; i++) {
         const { from, id, status } = events[i]
-        if (status == 'ringing' && !this.calls.has(from)) {
-          if (!this.calls.has(this.phone)) {
-            this.calls.set(this.phone, new Map<string, boolean>())
-          }
-          this.calls.get(this.phone)?.set(from, true)
+        if (!this.calls.has(this.phone)) {
+          this.calls.set(this.phone, new Map<string, boolean>())
+        }
+        const callsByPhone = this.calls.get(this.phone)!
+        if (status == 'ringing' && !callsByPhone.has(from)) {
+          callsByPhone.set(from, true)
           if (this.config.rejectCalls && this.rejectCall) {
             await this.rejectCall(id, from)
             const response = await this.sendMessage(from, { text: this.config.rejectCalls }, {})
