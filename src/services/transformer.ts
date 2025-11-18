@@ -4,7 +4,7 @@ import { parsePhoneNumber } from 'awesome-phonenumber'
 import vCard from 'vcf'
 import logger from './logger'
 import { Config } from './config'
-import { MESSAGE_CHECK_WAAPP, SEND_AUDIO_MESSAGE_AS_PTT } from '../defaults'
+import { MESSAGE_CHECK_WAAPP, SEND_AUDIO_MESSAGE_AS_PTT, UNOAPI_NATIVE_FLOW_BUTTONS } from '../defaults'
 import { t } from '../i18n'
 
 export const TYPE_MESSAGES_TO_PROCESS_FILE = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage', 'ptvMessage']
@@ -227,51 +227,233 @@ export const toBaileysMessageContent = (payload: any, customMessageCharactersFun
       response.text = customMessageCharactersFunction(payload.text.body)
       break
     case 'interactive':
-      let listMessage = {}
-      if (payload.interactive.header) {
-        listMessage = {
-          title: payload.interactive.header.text,
-          description: payload.interactive.body.text,
-          buttonText: payload.interactive.action.button,
-          footerText: payload.interactive.footer.text,
-          sections: payload.interactive.action.sections.map(
-            (section: { title: string; rows: { title: string; rowId: string; description: string }[] }) => {
+      // Build payload according to whaileys / baileys interactive format
+      // If there are sections -> build a list message (title, buttonText, sections)
+      // If there are action.buttons -> build a buttons message (text, footer, buttons)
+      const interactive = payload.interactive || {}
+      const action = interactive.action || {}
+      const header = interactive.header || {}
+      const body = interactive.body || {}
+      const footer = interactive.footer || {}
+
+      // Support header multimedia: if header.type is image/video/document/audio
+      if (header.type && header.type !== 'text') {
+        const mediaType = header.type
+        const mediaObj = header[mediaType] || {}
+        const link = mediaObj.link || mediaObj.url
+        if (link) {
+          // attach media to top-level (baileys accepts e.g. { image: { url } })
+          response[mediaType] = { url: link }
+          if (mediaObj.filename) {
+            response.fileName = mediaObj.filename
+          }
+          try {
+            const tmpPayload: any = { type: mediaType }
+            tmpPayload[mediaType] = { link }
+            const mimetype = getMimetype(tmpPayload)
+            if (mimetype) response.mimetype = mimetype
+          } catch (e) {
+            // ignore mimetype detection errors
+          }
+        }
+      }
+
+      // If sections are present, produce a list-style payload expected by baileys
+      if (action.sections && Array.isArray(action.sections) && action.sections.length > 0) {
+        response.text = body.text || ''
+        response.footer = footer.text || ''
+        response.title = header.text || ''
+        response.buttonText = action.button || 'Selecione'
+        response.sections = action.sections.map((section: any) => ({
+          title: section.title || '',
+          rows: (section.rows || []).map((row: any) => ({
+            rowId: row.rowId || row.id || '',
+            title: row.title || '',
+            description: row.description || '',
+          })),
+        }))
+      } else if (action.buttons && Array.isArray(action.buttons) && action.buttons.length > 0) {
+        // When native flow buttons are disabled, fall back to classic buttonsMessage
+        if (!UNOAPI_NATIVE_FLOW_BUTTONS) {
+          response.text = body.text || action.text || ''
+          response.footer = footer.text || ''
+          response.buttons = action.buttons.map((button: any) => {
+            // Quick reply style
+            if (button.reply || button.type === 'reply' || button.type === 'quick_reply') {
+              const reply = button.reply || button
+              const id = reply.id || reply.buttonId || ''
+              const title = reply.title || reply.displayText || reply.buttonText || ''
               return {
-                title: section.title,
-                rows: section.rows.map((row: { title: string; rowId: string; description: string }) => {
-                  return {
-                    title: row.title,
-                    rowId: row.rowId,
-                    description: row.description,
-                  }
+                buttonId: id,
+                buttonText: { displayText: title },
+                type: 1,
+              }
+            }
+
+            // URL / link button
+            if (button.url || button.type === 'url' || button.type === 'cta_url') {
+              const urlObj = button.url || button
+              const link = urlObj.link || urlObj.url || ''
+              const title = urlObj.title || urlObj.displayText || link || 'Abrir'
+              return {
+                buttonId: link || '',
+                buttonText: { displayText: title },
+                type: 1,
+              }
+            }
+
+            // Call button
+            if (button.call || button.type === 'call' || button.type === 'cta_call') {
+              const callObj = button.call || button
+              const phone = callObj.phone_number || callObj.phone || ''
+              const title = callObj.title || `Ligar ${phone}`
+              return {
+                buttonId: `call:${phone}`,
+                buttonText: { displayText: title },
+                type: 1,
+              }
+            }
+
+            // Copy code button (e.g. PIX) - fallback to quick reply behavior
+            if (button.copy_code || button.type === 'copy_code' || button.type === 'cta_copy') {
+              const copy = button.copy_code || button
+              const id = copy.id || ''
+              const title = copy.title || copy.displayText || 'Copiar código'
+              return {
+                buttonId: id,
+                buttonText: { displayText: title },
+                type: 1,
+              }
+            }
+
+            // Fallback: treat as quick reply
+            const reply = button.reply || button
+            const id = reply.id || reply.buttonId || ''
+            const title = reply.title || reply.displayText || reply.buttonText || ''
+            return {
+              buttonId: id,
+              buttonText: { displayText: title },
+              type: 1,
+            }
+          })
+        } else {
+          // Build native flow interactive message (whaileys)
+          const buttons = action.buttons.map((button: any) => {
+            // Quick reply style
+            if (button.reply || button.type === 'reply' || button.type === 'quick_reply') {
+              const reply = button.reply || button
+              const id = reply.id || reply.buttonId || ''
+              const title = reply.title || reply.displayText || reply.buttonText || ''
+              return {
+                name: 'quick_reply',
+                buttonParamsJson: JSON.stringify({
+                  id,
+                  display_text: title,
                 }),
               }
+            }
+
+            // URL / link button
+            if (button.url || button.type === 'url' || button.type === 'cta_url') {
+              const urlObj = button.url || button
+              const link = urlObj.link || urlObj.url || ''
+              const title = urlObj.title || urlObj.displayText || link || 'Abrir'
+              return {
+                name: 'cta_url',
+                buttonParamsJson: JSON.stringify({
+                  display_text: title,
+                  url: link,
+                }),
+              }
+            }
+
+            // Call button
+            if (button.call || button.type === 'call' || button.type === 'cta_call') {
+              const callObj = button.call || button
+              const phone = callObj.phone_number || callObj.phone || ''
+              const title = callObj.title || `Ligar ${phone}`
+              return {
+                name: 'cta_call',
+                buttonParamsJson: JSON.stringify({
+                  display_text: title,
+                  phone_number: phone,
+                }),
+              }
+            }
+
+            // Copy code button (e.g. PIX)
+            if (button.copy_code || button.type === 'copy_code' || button.type === 'cta_copy') {
+              const copy = button.copy_code || button
+              const code = copy.code || copy.copy_code || ''
+              const title = copy.title || copy.displayText || 'Copiar código'
+              return {
+                name: 'cta_copy',
+                buttonParamsJson: JSON.stringify({
+                  id: copy.id || '',
+                  display_text: title,
+                  copy_code: code,
+                }),
+              }
+            }
+
+            // Fallback: treat as quick reply
+            const reply = button.reply || button
+            const id = reply.id || reply.buttonId || ''
+            const title = reply.title || reply.displayText || reply.buttonText || ''
+            return {
+              name: 'quick_reply',
+              buttonParamsJson: JSON.stringify({
+                id,
+                display_text: title,
+              }),
+            }
+          })
+          response.interactiveMessage = {
+            body: { text: body.text || action.text || '' },
+            footer: footer.text ? { text: footer.text } : undefined,
+            header: {
+              title: header.title || header.text || '',
+              subtitle: header.subtitle || '',
+              hasMediaAttachment: false,
+              // 4 = text header (native flow)
+              type: 4,
             },
-          ),
-          listType: 2,
+            nativeFlowMessage: {
+              buttons,
+            },
+          }
         }
       } else {
-        listMessage = {
-          title: '',
-          description: payload.interactive.body.text || 'Nenhuma descriçao encontrada',
-          buttonText: 'Selecione',
-          footerText: '',
-          sections: [
-            {
-              title: 'Opcões',
-              rows: payload.interactive.action.buttons.map((button: { reply: { title: string; id: string; description: string } }) => {
-                return {
-                  title: button.reply.title,
-                  rowId: button.reply.id,
-                  description: '',
-                }
-              }),
-            },
-          ],
+        // Fallback: keep previous listMessage behaviour as a compatibility layer
+        const sections = action.sections
+          ? action.sections.map((section: any) => ({
+              title: section.title || '',
+              rows: (section.rows || []).map((row: any) => ({
+                title: row.title || '',
+                rowId: row.rowId || row.id || '',
+                description: row.description || '',
+              })),
+            }))
+          : [
+              {
+                title: 'Opções',
+                rows: (action.buttons || []).map((button: any) => ({
+                  title: button.reply?.title || button.title || '',
+                  rowId: button.reply?.id || button.id || '',
+                  description: button.reply?.description || '',
+                })),
+              },
+            ]
+
+        response.listMessage = {
+          title: header.text || '',
+          description: body.text || 'Nenhuma descriçao encontrada',
+          buttonText: action.button || 'Selecione',
+          footerText: footer.text || '',
+          sections,
           listType: 2,
         }
       }
-      response.listMessage = listMessage
       break
     case 'image':
     case 'audio':

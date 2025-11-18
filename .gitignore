@@ -11,3 +11,4 @@ data/logs/*
 .yarn/*
 .yarnrc.yml
 /.idea/
+.vscode/

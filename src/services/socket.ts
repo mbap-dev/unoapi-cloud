@@ -161,6 +161,7 @@ export const connect = async ({
       } else {
         logger.info(`Correct save creds with number is ${phoneCreds} and configured number ${phone}`)
         currentSaveCreds = saveCreds
+        await saveCreds()
       }
     }
   }
@@ -305,22 +306,6 @@ export const connect = async ({
     const message = await dataStore.loadMessage(remoteJid!, id!)
     return message?.message || undefined
   }
-
-  // const patchMessageBeforeSending = (msg: proto.IMessage) => {
-  //   const isProductList = (listMessage: proto.Message.IListMessage | null | undefined) =>
-  //     listMessage?.listType === proto.Message.ListMessage.ListType.PRODUCT_LIST
-
-  //   if (isProductList(msg.deviceSentMessage?.message?.listMessage) || isProductList(msg.listMessage)) {
-  //     msg = JSON.parse(JSON.stringify(msg))
-  //     if (msg.deviceSentMessage?.message?.listMessage) {
-  //       msg.deviceSentMessage.message.listMessage.listType = proto.Message.ListMessage.ListType.SINGLE_SELECT
-  //     }
-  //     if (msg.listMessage) {
-  //       msg.listMessage.listType = proto.Message.ListMessage.ListType.SINGLE_SELECT
-  //     }
-  //   }
-  //   return msg
-  // }
 
   const event = <T extends keyof BaileysEventMap>(event: T, callback: (arg: BaileysEventMap[T]) => void) => {
     logger.info('Subscribe %s event: %s', phone, event)
