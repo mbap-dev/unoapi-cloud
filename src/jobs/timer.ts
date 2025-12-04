@@ -1,7 +1,7 @@
 import { Incoming } from '../services/incoming'
 import logger from '../services/logger'
 import { getLastTimer, delLastTimer } from '../services/redis'
-import { start, stop } from '../services/timer'
+import { start } from '../services/timer'
 
 export class TimerJob {
   private incoming: Incoming
@@ -16,6 +16,7 @@ export class TimerJob {
     const a = data as any
     const payload: any = a.payload
     const { message, to, time, nexts } = payload
+    const type = payload.type || 'text'
     const messageDate = Date.parse(time)
     const string = await this.getLastTimerFunction(phone, to)
     const lastTime = string ? Date.parse(string) : undefined
@@ -27,8 +28,8 @@ export class TimerJob {
       const body = {
         messaging_product: 'whatsapp',
         to,
-        type: 'text',
-        text: {
+        type,
+        [type]: {
           body: message,
         },
       }
@@ -36,8 +37,9 @@ export class TimerJob {
       if (nexts?.length > 0) {
         logger.debug('timer consumer found nexts %s to %s with %s', phone, to, JSON.stringify(nexts))
         const first = nexts.shift()
+        first.type = first.type || 'text'
         logger.debug('timer consumer %s to %s first %s and nexts %s', phone, to, JSON.stringify(first), JSON.stringify(nexts))
-        return start(phone, to, first.timeout, first.message, nexts)
+        return start(phone, to, first.timeout, first.message, first.type, nexts)
       } else {
         logger.debug('timer consumer not found nexts %s to %s', phone, to)
       }

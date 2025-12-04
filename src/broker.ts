@@ -1,22 +1,6 @@
 import * as dotenv from 'dotenv'
 dotenv.config()
 
-import {
-  UNOAPI_QUEUE_RELOAD,
-  UNOAPI_SERVER_NAME,
-  UNOAPI_QUEUE_MEDIA,
-  UNOAPI_QUEUE_OUTGOING,
-  UNOAPI_QUEUE_NOTIFICATION,
-  UNOAPI_QUEUE_OUTGOING_PREFETCH,
-  UNOAPI_QUEUE_BLACKLIST_ADD,
-  NOTIFY_FAILED_MESSAGES,
-  UNOAPI_EXCHANGE_BROKER_NAME,
-  STATUS_FAILED_WEBHOOK_URL,
-  UNOAPI_QUEUE_WEBHOOK_STATUS_FAILED,
-  UNOAPI_QUEUE_TIMER,
-  UNOAPI_QUEUE_TRANSCRIBER,
-} from './defaults'
-
 import { amqpConsume, amqpGetChannel, extractRoutingKeyFromBindingKey } from './amqp'
 import { startRedis } from './services/redis'
 import { OutgoingCloudApi } from './services/outgoing_cloud_api'
@@ -36,12 +20,30 @@ import { WebhookStatusFailedJob } from './jobs/webhook_status_failed'
 import { addToBlacklist } from './jobs/add_to_blacklist'
 import { TimerJob } from './jobs/timer'
 import { TranscriberJob } from './jobs/transcriber'
+import { SpeecherJob } from './jobs/speecher'
 import { OutgoingAmqp } from './services/outgoing_amqp'
 import { IncomingBaileys } from './services/incoming_baileys'
 import { getClientBaileys } from './services/client_baileys'
 import { onNewLoginGenerateToken } from './services/on_new_login_generate_token'
 import { ListenerAmqp } from './services/listener_amqp'
 import { IncomingJob } from './jobs/incoming'
+
+import {
+  UNOAPI_QUEUE_RELOAD,
+  UNOAPI_SERVER_NAME,
+  UNOAPI_QUEUE_MEDIA,
+  UNOAPI_QUEUE_OUTGOING,
+  UNOAPI_QUEUE_NOTIFICATION,
+  UNOAPI_QUEUE_OUTGOING_PREFETCH,
+  UNOAPI_QUEUE_BLACKLIST_ADD,
+  NOTIFY_FAILED_MESSAGES,
+  UNOAPI_EXCHANGE_BROKER_NAME,
+  STATUS_FAILED_WEBHOOK_URL,
+  UNOAPI_QUEUE_WEBHOOK_STATUS_FAILED,
+  UNOAPI_QUEUE_TIMER,
+  UNOAPI_QUEUE_TRANSCRIBER,
+  UNOAPI_QUEUE_SPEECH,
+} from './defaults'
 
 const incomingAmqp: Incoming = new IncomingAmqp(getConfigRedis)
 const outgoingCloudApi: Outgoing = new OutgoingCloudApi(getConfigRedis, isInBlacklistInRedis, addToBlacklistRedis)
@@ -53,6 +55,7 @@ const notificationJob = new NotificationJob(incomingAmqp)
 const outgingJob = new OutgoingJob(getConfigRedis, outgoingCloudApi)
 const timerJob = new TimerJob(incomingAmqp)
 const transcriberJob = new TranscriberJob(outgoingAmqp, getConfigRedis)
+const speecherJob = new SpeecherJob(incomingAmqp, getConfigRedis)
 
 import * as Sentry from '@sentry/node'
 if (process.env.SENTRY_DSN) {
@@ -88,6 +91,13 @@ const startBroker = async () => {
 
   logger.info('Starting transcriber consumer %s', UNOAPI_SERVER_NAME)
   await amqpConsume(UNOAPI_EXCHANGE_BROKER_NAME, UNOAPI_QUEUE_TRANSCRIBER, '*', transcriberJob.consume.bind(transcriberJob), {
+    notifyFailedMessages,
+    prefetch,
+    type: 'topic',
+  })
+
+  logger.info('Starting speecher consumer %s', UNOAPI_SERVER_NAME)
+  await amqpConsume(UNOAPI_EXCHANGE_BROKER_NAME, UNOAPI_QUEUE_SPEECH, '*', speecherJob.consume.bind(speecherJob), {
     notifyFailedMessages,
     prefetch,
     type: 'topic',

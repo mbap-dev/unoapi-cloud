@@ -17,7 +17,6 @@ import {
   WEBHOOK_URL,
   WEBHOOK_URL_ABSOLUTE,
   WEBHOOK_TOKEN,
-  LOG_LEVEL,
   IGNORE_GROUP_MESSAGES,
   IGNORE_OWN_MESSAGES,
   IGNORE_BROADCAST_STATUSES,
@@ -59,12 +58,16 @@ import {
   OPENAI_API_ASSISTANT_ID,
   WEBHOOK_ADD_TO_BLACKLIST_ON_OUTGOING_MESSAGE_WITH_TTL,
   OUTGOING_MESSAGES_COEX,
+  GROUP_MESSAGES_CLOUD_FORMAT,
+  OPENAI_API_SPEECH_VOICE,
+  OPENAI_API_SPEECH_MODEL,
 } from '../defaults'
+import { logLevel } from './logger'
 
 export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> => {
   if (!configs.has(phone)) {
     const config: Config = { ...defaultConfig }
-    config.logLevel = LOG_LEVEL as Level
+    config.logLevel = logLevel as Level
     config.ignoreGroupMessages = IGNORE_GROUP_MESSAGES
     config.ignoreNewsletterMessages = IGNORE_NEWSLETTER_MESSAGES
     config.readOnReceipt = READ_ON_RECEIPT
@@ -96,7 +99,9 @@ export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> 
     config.wavoipToken = WAVOIP_TOKEN
     config.openaiApiKey = OPENAI_API_KEY
     config.openaiApiTranscribeModel = OPENAI_API_TRANSCRIBE_MODEL
-    config.openaiAssistantId = OPENAI_API_ASSISTANT_ID
+    config.openaiAssistantId = OPENAI_API_ASSISTANT_ID 
+    config.openaiApiSpeechVoice = OPENAI_API_SPEECH_VOICE
+    config.openaiApiSpeechModel = OPENAI_API_SPEECH_MODEL
     config.useRedis = !!process.env.REDIS_URL
     config.useS3 = !!process.env.STORAGE_ENDPOINT
     config.webhooks[0].url = WEBHOOK_URL
@@ -123,6 +128,7 @@ export const getConfigByEnv: getConfig = async (phone: string): Promise<Config> 
     config.customMessageCharacters = CUSTOM_MESSAGE_CHARACTERS
     config.whatsappVersion = WHATSAPP_VERSION
     config.outgoingMessagesCoex = OUTGOING_MESSAGES_COEX
+    config.groupMessagesCloudFormat = GROUP_MESSAGES_CLOUD_FORMAT
 
     if (config.customMessageCharacters.length > 0) {
       const getRandomChar = () => {

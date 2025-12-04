@@ -1,6 +1,4 @@
-import * as dotenv from 'dotenv'
-dotenv.config()
-
+import logger from './services/logger'
 import { App } from './app'
 import { Incoming } from './services/incoming'
 import { IncomingAmqp } from './services/incoming_amqp'
@@ -8,18 +6,8 @@ import { Outgoing } from './services/outgoing'
 import { OutgoingAmqp } from './services/outgoing_amqp'
 import { SessionStore } from './services/session_store'
 import { SessionStoreRedis } from './services/session_store_redis'
-import {
-  BASE_URL,
-  PORT,
-  CONFIG_SESSION_PHONE_CLIENT,
-  CONFIG_SESSION_PHONE_NAME,
-  UNOAPI_QUEUE_BROADCAST,
-  UNOAPI_EXCHANGE_BROKER_NAME,
-  UNOAPI_QUEUE_RELOAD,
-} from './defaults'
 import { getConfigRedis } from './services/config_redis'
 import { amqpConsume } from './amqp'
-import logger from './services/logger'
 import { version } from '../package.json'
 import { onNewLoginGenerateToken } from './services/on_new_login_generate_token'
 import { addToBlacklistJob } from './services/blacklist'
@@ -38,8 +26,17 @@ import { ListenerBaileys } from './services/listener_baileys'
 import { Listener } from './services/listener'
 import { ContactDummy } from './services/contact_dummy'
 import injectRouteDummy from './services/inject_route_dummy'
-
 import * as Sentry from '@sentry/node'
+import {
+  BASE_URL,
+  PORT,
+  CONFIG_SESSION_PHONE_CLIENT,
+  CONFIG_SESSION_PHONE_NAME,
+  UNOAPI_QUEUE_BROADCAST,
+  UNOAPI_EXCHANGE_BROKER_NAME,
+  UNOAPI_QUEUE_RELOAD,
+} from './defaults'
+
 if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,

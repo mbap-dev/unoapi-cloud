@@ -163,6 +163,26 @@ http://localhost:9876/v15.0/5549988290955/messages \
 }'
 ```
 
+
+## Send a Speech, send text to unoapi and unoapi convert to audio
+
+Needs put configs  OPENAI_API_KEY, OPENAI_API_SPEECH_VOICE and OPENAI_API_SPEECH_MODEL
+
+```sh
+curl -i -X POST \
+http://localhost:9876/v15.0/554931978550/messages \
+-H 'Content-Type: application/json' \
+-H 'Authorization: 1' \
+-d '{
+  "messaging_product": "whatsapp",
+  "to": "5549988290955",
+  "type": "speech",
+  "speech": {
+    "body": "hello"
+  } 
+}'
+```
+
 ## Webhook Events
 
 Webhook Events like this
@@ -692,7 +712,6 @@ Mail to sales@unoapi.cloud
 
 ## Roadmap
 - Gif message as video: https://github.com/WhiskeySockets/Baileys#gif-message
-- Convert audio message: https://github.com/WhiskeySockets/Baileys#audio-message
 - Disappearing messages: https://github.com/WhiskeySockets/Baileys#disappearing-messages
 - Send Stories: https://github.com/WhiskeySockets/Baileys#broadcast-lists--stories
 - Filter by specific date on sync history: https://github.com/WhiskeySockets/Baileys?tab=readme-ov-file#receive-full-history

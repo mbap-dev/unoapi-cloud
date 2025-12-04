@@ -41,6 +41,7 @@ export type WebhookForward = {
 
 export type Config = {
   outgoingMessagesCoex: boolean | undefined
+  groupMessagesCloudFormat: boolean | undefined
   ignoreGroupMessages: boolean
   ignoreNewsletterMessages: boolean
   ignoreBroadcastMessages: boolean
@@ -89,9 +90,12 @@ export type Config = {
   openaiApiKey: string | undefined
   openaiApiTranscribeModel: string | undefined
   openaiAssistantId: string | undefined
+  openaiApiSpeechVoice: string | undefined
+  openaiApiSpeechModel: string | undefined
 }
 
 export const defaultConfig: Config = {
+  groupMessagesCloudFormat: false,
   outgoingMessagesCoex: false,
   ignoreGroupMessages: true,
   ignoreNewsletterMessages: true,
@@ -160,6 +164,8 @@ export const defaultConfig: Config = {
   openaiApiKey: undefined,
   openaiApiTranscribeModel: undefined,
   openaiAssistantId: undefined,
+  openaiApiSpeechVoice: undefined,
+  openaiApiSpeechModel: undefined
 }
 
 export interface getConfig {
