@@ -395,10 +395,21 @@ export class ClientBaileys implements Client {
           }
           const messageCallsWebhook = this.config.rejectCallsWebhook || this.config.messageCallsWebhook
           if (messageCallsWebhook) {
-            const waMessageKey = {
+            let remoteJidForWebhook = from
+            if (isLidUser(from)) {
+              const cachedPnJid = await this.store?.dataStore?.getJid(from)
+              if (cachedPnJid && !isLidUser(cachedPnJid)) {
+                remoteJidForWebhook = cachedPnJid
+              }
+            }
+            const waMessageKey: any = {
               fromMe: false,
               id: generateUnoId('CALL'),
-              remoteJid: from,
+              remoteJid: remoteJidForWebhook,
+            }
+            if (remoteJidForWebhook !== from) {
+              waMessageKey['senderLid'] = from
+              waMessageKey['senderPn'] = remoteJidForWebhook
             }
             const message = {
               key: waMessageKey,

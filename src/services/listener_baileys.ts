@@ -163,6 +163,12 @@ export class ListenerBaileys implements Listener {
     const { dataStore } = await config.getStore(phone, config)
     let data
     try {
+      const keyAny = i?.key as any
+      const senderLid = keyAny?.senderLid
+      const senderPn = keyAny?.senderPn
+      if (senderLid && senderPn) {
+        await dataStore.setJid(senderLid, senderPn)
+      }
       const resp = fromBaileysMessageContent(phone, i, config)
       data = resp[0]
       const senderPhone = resp[1]
