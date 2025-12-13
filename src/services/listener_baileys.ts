@@ -9,11 +9,12 @@ import {
   BindTemplateError,
   isSaveMedia,
   jidToPhoneNumber,
+  phoneNumberToJid,
   DecryptError,
   isDecryptError,
   isBindTemplateError,
 } from './transformer'
-import { WAMessage, delay } from 'baileys'
+import { isLidUser, WAMessage, delay } from 'baileys'
 import { Template } from './template'
 import { UNOAPI_DELAY_AFTER_FIRST_MESSAGE_MS, UNOAPI_DELAY_BETWEEN_MESSAGES_MS } from '../defaults'
 import { isUnoId, generateUnoId } from '../utils/id'
@@ -173,7 +174,12 @@ export class ListenerBaileys implements Listener {
       data = resp[0]
       const senderPhone = resp[1]
       const senderId = resp[2]
-      await dataStore.setJidIfNotFound(jidToPhoneNumber(senderPhone, ''), senderId)
+      if (!isLidUser(senderPhone) && isLidUser(senderId)) {
+        await dataStore.setJid(senderId, phoneNumberToJid(senderPhone))
+      }
+      if (!isLidUser(senderPhone)) {
+        await dataStore.setJidIfNotFound(jidToPhoneNumber(senderPhone, ''), senderId)
+      }
       logger.debug('Set message status decrypted %s', originalId)
       await store.dataStore.setStatus(originalId, 'decrypted')
     } catch (error) {

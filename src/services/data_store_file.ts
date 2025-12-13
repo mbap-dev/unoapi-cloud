@@ -200,6 +200,10 @@ const dataStoreFile = async (phone: string, config: Config): Promise<DataStore> 
         logger.debug(`${phoneOrJid} exists on WhatsApp, as jid: ${result.jid}`)
         jid = result.jid
         await dataStore.setJid(phoneOrJid, jid!)
+        if (jid && isLidUser(jid) && !isLidUser(phoneOrJid)) {
+          const pnJid = phoneNumberToJid(jidToPhoneNumber(phoneOrJid))
+          await dataStore.setJid(jid, pnJid)
+        }
       } else {
         if (lid) {
           logger.warn(`${phoneOrJid} not retrieve jid on WhatsApp baileys return lid ${lid}`)
