@@ -7,6 +7,15 @@ import { generateUnoId } from '../utils/id'
 const EXCHANGE = 'unoapi.outgoing'
 let initialized = false
 
+const stripInstanceMessageId = (phone: string, id: string) => {
+  if (!id) {
+    return id
+  }
+  const rawId = `${id}`
+  const phonePrefix = `${phone.replace('+', '')}_`
+  return rawId.startsWith(phonePrefix) ? rawId.slice(phonePrefix.length) : rawId
+}
+
 const initExchange = async () => {
   if (initialized) {
     return
@@ -30,9 +39,22 @@ export class IncomingAmqp implements Incoming {
   public async send(phone: string, payload: object, options: object = {}) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pl: any = { ...payload }
+    // Remove instance prefix from message ids coming from webhooks.
+    if (pl?.message_id) {
+      pl.message_id = stripInstanceMessageId(phone, pl.message_id)
+    }
+    if (pl?.reaction?.message_id) {
+      pl.reaction.message_id = stripInstanceMessageId(phone, pl.reaction.message_id)
+    }
     // Normalize Graph API reply context for providers expecting either
     // context.id or context.message_id. Ensure both are present when one is.
     if (pl && typeof pl === 'object' && pl.context && typeof pl.context === 'object') {
+      if (pl.context.message_id) {
+        pl.context.message_id = stripInstanceMessageId(phone, pl.context.message_id)
+      }
+      if (pl.context.id) {
+        pl.context.id = stripInstanceMessageId(phone, pl.context.id)
+      }
       if (pl.context.message_id && !pl.context.id) {
         pl.context.id = pl.context.message_id
       } else if (pl.context.id && !pl.context.message_id) {
