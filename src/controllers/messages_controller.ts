@@ -38,6 +38,15 @@ import { Incoming } from '../services/incoming'
 import { Outgoing } from '../services/outgoing'
 import logger from '../services/logger'
 
+const withInstanceMessageId = (phone: string, id: string) => {
+  if (!id) {
+    return id
+  }
+  const rawId = `${id}`
+  const phonePrefix = `${phone.replace('+', '')}_`
+  return rawId.startsWith(phonePrefix) ? rawId : `${phonePrefix}${rawId}`
+}
+
 export class MessagesController {
   protected endpoint = 'messages'
   private incoming: Incoming
@@ -57,6 +66,14 @@ export class MessagesController {
     const payload: object = req.body
     try {
       const response: ResponseUno = await this.incoming.send(phone, payload, { endpoint: this.endpoint })
+      if (response?.ok?.messages && Array.isArray(response.ok.messages)) {
+        response.ok.messages = response.ok.messages.map((message) => {
+          if (message?.id) {
+            message.id = withInstanceMessageId(phone, message.id)
+          }
+          return message
+        })
+      }
       logger.debug('%s response %s', this.endpoint, JSON.stringify(response.ok))
       await res.status(200).json(response.ok)
       if (response.error) {
