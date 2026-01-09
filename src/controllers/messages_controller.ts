@@ -37,15 +37,7 @@ import { Response as ResponseUno } from '../services/response'
 import { Incoming } from '../services/incoming'
 import { Outgoing } from '../services/outgoing'
 import logger from '../services/logger'
-
-const withInstanceMessageId = (phone: string, id: string) => {
-  if (!id) {
-    return id
-  }
-  const rawId = `${id}`
-  const phonePrefix = `${phone.replace('+', '')}_`
-  return rawId.startsWith(phonePrefix) ? rawId : `${phonePrefix}${rawId}`
-}
+import { withInstanceMessageId } from '../utils/message_id'
 
 export class MessagesController {
   protected endpoint = 'messages'

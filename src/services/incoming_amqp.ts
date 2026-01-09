@@ -3,18 +3,10 @@ import { amqpGetChannel } from '../amqp'
 import { jidToPhoneNumber, getGroupId } from './transformer'
 import { getConfig } from './config'
 import { generateUnoId } from '../utils/id'
+import { stripInstanceMessageId } from '../utils/message_id'
 
 const EXCHANGE = 'unoapi.outgoing'
 let initialized = false
-
-const stripInstanceMessageId = (phone: string, id: string) => {
-  if (!id) {
-    return id
-  }
-  const rawId = `${id}`
-  const phonePrefix = `${phone.replace('+', '')}_`
-  return rawId.startsWith(phonePrefix) ? rawId.slice(phonePrefix.length) : rawId
-}
 
 const initExchange = async () => {
   if (initialized) {
