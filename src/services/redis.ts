@@ -143,12 +143,20 @@ export const lastTimerKey = (from: string, to: string) => {
   return `${BASE_KEY}timer:${from}:${to}`
 }
 
+export const lastMessageDirection = (from: string, to: string) => {
+  return `${BASE_KEY}message-direction:${from}:${to}`
+}
+
 export const sessionStatusKey = (phone: string) => {
   return `${BASE_KEY}status:${phone}`
 }
 
 const messageStatusKey = (phone: string, id: string) => {
   return `${BASE_KEY}message-status:${phone}:${id}`
+}
+
+const messageDirectionKey = (phone: string, clientPhone: string) => {
+  return `${BASE_KEY}message-direction:${phone}:${clientPhone}`
 }
 
 const mediaKey = (phone: string, id: string) => {
@@ -237,8 +245,17 @@ export const getMessageStatus = async (phone: string, id: string) => {
 
 export const setMessageStatus = async (phone: string, id: string, status: string) => {
   const key = messageStatusKey(phone, id)
-  logger.trace('Setting %s => %s', key, status)
   await client.set(key, status, { EX: DATA_TTL })
+}
+
+export const getMessageDirection = async (phone: string, phoneClient: string) => {
+  const key = messageDirectionKey(phone, phoneClient)
+  return redisGet(key)
+}
+
+export const setMessageDirection = async (phone: string, phoneClient: string, direction: string) => {
+  const key = messageDirectionKey(phone, phoneClient)
+  return client.set(key, direction, { EX: DATA_TTL })
 }
 
 export const getTemplates = async (phone: string) => {
@@ -449,22 +466,17 @@ export const setGroup = async (phone: string, jid: string, data: GroupMetadata) 
   return redisSetAndExpire(key, JSON.stringify(data), DATA_TTL)
 }
 
-export const setLastTimer = async (phone: string, to: string, current: Date) => {
+export const setLastTimer = async (phone: string, to: string, current: number) => {
   const key = lastTimerKey(phone, to)
   logger.debug('setLastTimer with key %s', key)
-  return redisSet(key, current.toISOString())
+  return redisSet(key, current)
 }
 
 export const getLastTimer = async (phone: string, to: string) => {
   const key = lastTimerKey(phone, to)
   logger.debug('getLastTimer with key %s', key)
-  return redisGet(key)
-}
-
-export const delLastTimer = async (phone: string, to: string) => {
-  const key = lastTimerKey(phone, to)
-  logger.debug('delLastTimer with key %s', key)
-  return redisDel(key)
+  const string = await redisGet(key)
+  return string ? parseInt(string) : undefined
 }
 
 export const setMedia = async (phone: string, id: string, payload: any) => {

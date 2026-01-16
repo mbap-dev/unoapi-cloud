@@ -1,5 +1,5 @@
 import { proto, WAMessage, WAMessageKey, GroupMetadata } from 'baileys'
-import { DataStore, MessageStatus } from './data_store'
+import { DataStore, MessageDirection, MessageStatus } from './data_store'
 import { jidToPhoneNumber, phoneNumberToJid, isIndividualJid } from './transformer'
 import { getDataStore, dataStores } from './data_store'
 import { ONLY_HELLO_TEMPLATE } from '../defaults'
@@ -24,6 +24,8 @@ import {
   setTemplates,
   setMedia,
   getMedia,
+  getMessageDirection,
+  setMessageDirection
 } from './redis'
 import { Config } from './config'
 import logger from './logger'
@@ -88,15 +90,22 @@ const dataStoreRedis = async (phone: string, config: Config): Promise<DataStore>
     await setJid(phone, phoneOrJid, jid)
   }
   store.loadMessage = async (remoteJid: string, id: string) => {
-    const newJid = isIndividualJid(remoteJid) ? phoneNumberToJid(jidToPhoneNumber(remoteJid)) : remoteJid
-    const m = await getMessage(phone, newJid, id)
-    const wm = m as proto.IWebMessageInfo
-    return wm
+    const clientPhone = jidToPhoneNumber(remoteJid)
+    let m
+    m = await getMessage(phone, clientPhone, id)
+    if (!m) {
+      const newJid = isIndividualJid(remoteJid) ? phoneNumberToJid(jidToPhoneNumber(remoteJid)) : remoteJid
+      m = await getMessage(phone, newJid, id)
+    }
+    if (!m) {
+      return
+    }
+    return m as proto.IWebMessageInfo
   }
   store.setMessage = async (remoteJid: string, message: WAMessage) => {
-    const newJid = isIndividualJid(remoteJid) ? phoneNumberToJid(jidToPhoneNumber(remoteJid)) : remoteJid
+    const clientPhone = jidToPhoneNumber(remoteJid);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return setMessage(phone, newJid, message.key.id!, message)
+    return setMessage(phone, clientPhone, message.key.id!, message)
   }
   store.cleanSession = async (removeConfig = CLEAN_CONFIG_ON_DISCONNECT) => {
     if (removeConfig) {
@@ -110,6 +119,15 @@ const dataStoreRedis = async (phone: string, config: Config): Promise<DataStore>
   store.loadStatus = async (id: string) => {
     const status = await getMessageStatus(phone, id)
     return status ? (status as MessageStatus) : undefined
+  }
+  store.setLastMessageDirection = async (clientPhone: string, direction: MessageDirection) => {
+    logger.debug('Last message direction phone %s to %s set %s', phone, clientPhone, direction)
+    return setMessageDirection(phone, clientPhone, direction)
+  }
+  store.loadLastMessageDirection = async (clientPhone: string) => {
+    const direction = await getMessageDirection(phone, clientPhone)
+    logger.debug('Last message direction phone %s to %s get %s', phone, clientPhone, direction)
+    return direction ? (direction as MessageDirection) : undefined
   }
   store.setTemplates = async (templates: string) => {
     return setTemplates(phone, templates)

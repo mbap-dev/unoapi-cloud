@@ -2,7 +2,7 @@ import { Outgoing } from './outgoing'
 import fetch, { Response, RequestInit } from 'node-fetch'
 import { Webhook, getConfig } from './config'
 import logger from './logger'
-import { completeCloudApiWebHook, isGroupMessage, isOutgoingMessage, isNewsletterMessage, isUpdateMessage, extractDestinyPhone } from './transformer'
+import { completeCloudApiWebHook, isGroupMessage, isOutgoingMessage, isNewsletterMessage, isUpdateMessage, extractDestinyPhone, extractFromPhone } from './transformer'
 import { addToBlacklist, isInBlacklist } from './blacklist'
 import { PublishOption } from '../amqp'
 import { applyInstanceMessageIds } from '../utils/message_id'
@@ -43,7 +43,16 @@ export class OutgoingCloudApi implements Outgoing {
       logger.info(`Session phone %s webhook %s configured to not send newsletter message for this webhook`, phone, webhook.id)
       return
     }
+    const fromPhone = extractFromPhone(message, false)
+    if (fromPhone && fromPhone != phone) {
+      const config = await this.getConfig(phone)
+      const { dataStore } = await config.getStore(phone, config)
+      await dataStore.setLastMessageDirection(fromPhone, 'outgoing')
+    }
     if (isOutgoingMessage(message)) {
+      const config = await this.getConfig(phone)
+      const { dataStore } = await config.getStore(phone, config)  
+      await dataStore.setLastMessageDirection(destinyPhone, 'outgoing')
       if (webhook.addToBlackListOnOutgoingMessageWithTtl) {
         logger.info(`Session phone %s webhook %s configured to add to blacklist when outgoing message for this webhook`, phone, webhook.id)
         const to = extractDestinyPhone(message, false)

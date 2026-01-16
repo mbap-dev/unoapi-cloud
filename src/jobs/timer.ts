@@ -1,30 +1,39 @@
+import { getConfig } from '../services/config'
 import { Incoming } from '../services/incoming'
 import logger from '../services/logger'
-import { getLastTimer, delLastTimer } from '../services/redis'
+import { getLastTimer } from '../services/redis'
 import { start } from '../services/timer'
 
 export class TimerJob {
   private incoming: Incoming
+  private getConfig: getConfig
   private getLastTimerFunction: typeof getLastTimer
 
-  constructor(incoming: Incoming, getLastTimerFunction: typeof getLastTimer = getLastTimer) {
+  constructor(incoming: Incoming, getConfig: getConfig, getLastTimerFunction: typeof getLastTimer = getLastTimer) {
     this.incoming = incoming
     this.getLastTimerFunction = getLastTimerFunction
+    this.getConfig = getConfig
   }
 
   async consume(phone: string, data: object) {
     const a = data as any
     const payload: any = a.payload
-    const { message, to, time, nexts } = payload
+    const { message, to, time: messageDate, nexts } = payload
     const type = payload.type || 'text'
-    const messageDate = Date.parse(time)
-    const string = await this.getLastTimerFunction(phone, to)
-    const lastTime = string ? Date.parse(string) : undefined
-    logger.debug('timer comsumer phone %s to %s time %s last time %s', phone, to, time, lastTime)
+    const lastTime = await this.getLastTimerFunction(phone, to)
+    logger.debug('timer phone %s to %s consumer time %s last time %s', phone, to, messageDate, lastTime)
     if (!lastTime || lastTime > messageDate) {
-      logger.debug('timer comsumer expired phone %s to %s', phone, to)
+      logger.debug('timer phone %s to %s consumer expired ', phone, to)
+      return
     } else {
-      logger.debug('timer consumer enqueue phone %s to %s', phone, to)
+      const config = await this.getConfig(phone)
+      const { dataStore } = await config.getStore(phone, config)
+      const lastMessageDirection = await dataStore.loadLastMessageDirection(to)
+      logger.debug('timer phone %s to %s consumer last message direction %s', phone, to, lastMessageDirection)
+      if (lastMessageDirection != 'incoming') {
+        return
+      }
+      logger.debug('timer phone %s to %s consumer enqueue message: %s', phone, to, message)
       const body = {
         messaging_product: 'whatsapp',
         to,
@@ -35,15 +44,14 @@ export class TimerJob {
       }
       await this.incoming.send(phone, body, {})
       if (nexts?.length > 0) {
-        logger.debug('timer consumer found nexts %s to %s with %s', phone, to, JSON.stringify(nexts))
+        logger.debug('timer phone %s to %s consumer found nexts with %s', phone, to, JSON.stringify(nexts))
         const first = nexts.shift()
         first.type = first.type || 'text'
-        logger.debug('timer consumer %s to %s first %s and nexts %s', phone, to, JSON.stringify(first), JSON.stringify(nexts))
+        logger.debug('timer phone %s to %s consumer first %s and nexts %s', phone, to, JSON.stringify(first), JSON.stringify(nexts))
         return start(phone, to, first.timeout, first.message, first.type, nexts)
       } else {
-        logger.debug('timer consumer not found nexts %s to %s', phone, to)
+        logger.debug('timer phone %s to %s consumer not found nexts', phone, to)
       }
     }
-    return delLastTimer(phone, to)
   }
 }
