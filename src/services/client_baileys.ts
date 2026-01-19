@@ -371,6 +371,7 @@ export class ClientBaileys implements Client {
     this.event('call', async (events: any[]) => {
       for (let i = 0; i < events.length; i++) {
         const { from, id, status } = events[i]
+        logger.debug('call event %s %s', this.phone, JSON.stringify(events[i]))
         if (!this.calls.has(this.phone)) {
           this.calls.set(this.phone, new Map<string, boolean>())
         }
@@ -380,6 +381,7 @@ export class ClientBaileys implements Client {
           if (this.config.rejectCalls && this.rejectCall) {
             await this.rejectCall(id, from)
             const response = await this.sendMessage(from, { text: this.config.rejectCalls }, {})
+            logger.debug('rejectCalls response %s %s', this.phone, JSON.stringify(response))
             let remoteJidForMessage = from
             if (isLidUser(from)) {
               const cachedPnJid = await this.store?.dataStore?.getJid(from)
