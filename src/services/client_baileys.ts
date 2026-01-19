@@ -380,12 +380,24 @@ export class ClientBaileys implements Client {
           if (this.config.rejectCalls && this.rejectCall) {
             await this.rejectCall(id, from)
             const response = await this.sendMessage(from, { text: this.config.rejectCalls }, {})
+            let remoteJidForMessage = from
+            if (isLidUser(from)) {
+              const cachedPnJid = await this.store?.dataStore?.getJid(from)
+              if (cachedPnJid && !isLidUser(cachedPnJid)) {
+                remoteJidForMessage = cachedPnJid
+              }
+            }
+            const waMessageKey: any = {
+              fromMe: true,
+              remoteJid: remoteJidForMessage,
+              id: response.key.id,
+            }
+            if (remoteJidForMessage !== from) {
+              waMessageKey['senderLid'] = from
+              waMessageKey['senderPn'] = remoteJidForMessage
+            }
             const message = {
-              key: {
-                fromMe: true,
-                remoteJid: from,
-                id: response.key.id,
-              },
+              key: waMessageKey,
               message: {
                 conversation: this.config.rejectCalls,
               },
